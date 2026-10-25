@@ -4,41 +4,43 @@
   "stac_extensions": [
     "https://stac-extensions.github.io/table/v1.3.0/schema.json",
     "https://stac-extensions.github.io/cf/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/classification/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/file/v2.1.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json"
   ],
-  "id": "profile-cores3-telemetry-v5",
-  "title": "CoreS3 air station",
-  "description": "Device profile for an M5Stack CoreS3 station with a Plantower PMSA003 particle sensor. It describes the Parquet columns the firmware writes and has no Items.",
+  "id": "station-3f2b9c1e",
+  "title": "Osu air station",
+  "description": "An M5Stack CoreS3 station with a Plantower PMSA003 particle sensor. Each Item is one reconciled day of one-minute samples.",
   "license": "CC-BY-4.0",
+  "keywords": [
+    "air quality",
+    "PM2.5",
+    "low-cost sensor"
+  ],
+  "instruments": [
+    "pmsa003"
+  ],
   "extent": {
     "spatial": {
       "bbox": [
         [
-          -180,
-          -90,
-          180,
-          90
+          -0.19204467683924223,
+          5.597861712437428,
+          -0.18411316394230465,
+          5.6056766614618505
         ]
       ]
     },
     "temporal": {
       "interval": [
         [
-          null,
+          "2026-10-01T00:00:00Z",
           null
         ]
       ]
     }
   },
-  "opensensor:digest": "e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b",
-  "opensensor:family": "air",
-  "opensensor:primary": [
-    "pm25_atmospheric_ug_m3",
-    "imu_temperature_c"
-  ],
-  "opensensor:hero": "air-mood",
   "opensensor:sample_interval_s": 60,
-  "opensensor:proto_min": 1,
   "opensensor:scales": {
     "who-2021-pm25": {
       "source": "https://www.who.int/publications/i/item/9789240034228",
@@ -70,80 +72,95 @@
       ]
     }
   },
-  "table:primary_datetime": "event_time_utc_us",
-  "table:columns": [
-    {
-      "name": "event_time_utc_us",
-      "type": "int64",
-      "unit": "us",
-      "opensensor:unit_label": "us_since_unix_epoch",
-      "opensensor:procedure": "clock",
-      "opensensor:role": "time"
-    },
-    {
-      "name": "pm25_atmospheric_ug_m3",
-      "type": "int32",
-      "title": "PM2.5",
-      "unit": "ug m-3",
-      "cf:standard_name": "mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air",
-      "opensensor:ucum": "ug/m3",
-      "opensensor:unit_label": "ug/m3",
-      "opensensor:field_id": 17,
-      "opensensor:property": "urn:walkthru-earth:cores3:property:pm25_atmospheric_ug_m3",
-      "opensensor:procedure": "pmsa003",
-      "opensensor:live_key": "pm25",
-      "opensensor:role": "measurement",
-      "opensensor:valid_when": {
-        "column": "pms_status",
-        "equals": 4
-      },
-      "opensensor:settle_s": 180,
-      "opensensor:aggregate": "mean",
-      "opensensor:range": [
-        0,
-        1000
+  "item_assets": {
+    "data": {
+      "type": "application/vnd.apache.parquet",
+      "title": "Reconciled day of samples",
+      "roles": [
+        "data"
       ],
-      "opensensor:precision": 1,
-      "opensensor:scale": "who-2021-pm25"
-    },
-    {
-      "name": "imu_temperature_c",
-      "type": "float",
-      "title": "Board temperature",
-      "unit": "degC",
-      "opensensor:ucum": "Cel",
-      "opensensor:unit_label": "degC",
-      "opensensor:procedure": "m5_imu",
-      "opensensor:live_key": "imu_t",
-      "opensensor:role": "health",
-      "opensensor:valid_when": {
-        "column": "imu_temperature_c",
-        "finite": true
-      },
-      "opensensor:aggregate": "mean",
-      "opensensor:precision": 0.1
-    },
-    {
-      "name": "pms_status",
-      "type": "int32",
-      "opensensor:procedure": "pmsa003",
-      "opensensor:role": "status",
-      "opensensor:aggregate": "last",
-      "opensensor:codes": [
+      "table:primary_datetime": "event_time_utc_us",
+      "table:columns": [
         {
-          "value": 0,
-          "name": "missing",
-          "nodata": true
+          "name": "event_time_utc_us",
+          "type": "int64",
+          "unit": "us",
+          "roles": [
+            "coordinate"
+          ],
+          "opensensor:procedure": "clock"
         },
         {
-          "value": 4,
-          "name": "valid",
-          "color_hint": "2E7D32"
+          "name": "pm25_atmospheric_ug_m3",
+          "type": "int32",
+          "title": "PM2.5",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air",
+          "opensensor:property": "http://vocab.nerc.ac.uk/collection/P07/current/YUDG9DXK/",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 17,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ],
+          "opensensor:scale": "who-2021-pm25"
+        },
+        {
+          "name": "imu_temperature_c",
+          "type": "float",
+          "title": "Board temperature",
+          "unit": "Cel",
+          "roles": [
+            "auxiliaryInformation"
+          ],
+          "opensensor:procedure": "m5_imu",
+          "opensensor:valid_when": {
+            "column": "imu_temperature_c",
+            "finite": true
+          },
+          "opensensor:aggregate": "mean"
+        },
+        {
+          "name": "pms_status",
+          "type": "int32",
+          "roles": [
+            "qualityInformation"
+          ],
+          "opensensor:procedure": "pmsa003",
+          "opensensor:aggregate": "mode",
+          "classification:classes": [
+            {
+              "value": 0,
+              "name": "missing",
+              "nodata": true
+            },
+            {
+              "value": 4,
+              "name": "valid",
+              "color_hint": "2E7D32"
+            }
+          ]
         }
       ]
     }
-  ],
+  },
   "links": [
+    {
+      "rel": "describedby",
+      "href": "https://github.com/walkthru-earth/aq-parquet/blob/main/firmware/esp-idf-cores3/bringup/telemetry_fields.inc",
+      "type": "text/plain",
+      "title": "Firmware column dictionary",
+      "file:checksum": "1220e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b"
+    },
     {
       "rel": "license",
       "href": "https://creativecommons.org/licenses/by/4.0/",

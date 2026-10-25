@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json#",
   "title": "OpenSensor Extension",
-  "description": "STAC OpenSensor Extension for STAC Collections and STAC Items that describe low-cost sensor stations and their Parquet columns.",
+  "description": "STAC OpenSensor Extension for STAC Collections and STAC Items that describe sensor station tables.",
   "type": "object",
   "required": [
     "stac_extensions",
@@ -80,25 +80,9 @@
   ],
   "definitions": {
     "fields": {
-      "$comment": "Profile level fields, allowed at the top of a Collection and in Item properties.",
+      "$comment": "Fields allowed at the top of a Collection and in Item properties.",
       "type": "object",
       "properties": {
-        "opensensor:digest": {
-          "$ref": "#/definitions/sha256"
-        },
-        "opensensor:family": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_-]*$"
-        },
-        "opensensor:primary": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
         "opensensor:scales": {
           "type": "object",
           "propertyNames": {
@@ -108,16 +92,9 @@
             "$ref": "#/definitions/scale"
           }
         },
-        "opensensor:hero": {
-          "$ref": "#/definitions/id"
-        },
         "opensensor:sample_interval_s": {
           "type": "number",
           "exclusiveMinimum": 0
-        },
-        "opensensor:proto_min": {
-          "type": "integer",
-          "minimum": 1
         }
       },
       "patternProperties": {
@@ -138,7 +115,7 @@
       }
     },
     "column": {
-      "$comment": "Column level fields, allowed inside table:columns entries.",
+      "$comment": "Fields allowed inside table:columns entries.",
       "type": "object",
       "properties": {
         "opensensor:property": {
@@ -149,38 +126,9 @@
           "type": "string",
           "minLength": 1
         },
-        "opensensor:ucum": {
-          "type": "string",
-          "minLength": 1
-        },
-        "opensensor:unit_label": {
-          "type": "string",
-          "minLength": 1
-        },
         "opensensor:field_id": {
           "type": "integer",
           "minimum": 0
-        },
-        "opensensor:codes": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/definitions/code"
-          }
-        },
-        "opensensor:live_key": {
-          "type": "string",
-          "pattern": "^[a-z0-9_]{1,15}$"
-        },
-        "opensensor:role": {
-          "type": "string",
-          "enum": [
-            "measurement",
-            "health",
-            "identity",
-            "time",
-            "status"
-          ]
         },
         "opensensor:valid_when": {
           "$ref": "#/definitions/gate"
@@ -193,24 +141,20 @@
           "type": "string",
           "enum": [
             "mean",
-            "min",
-            "max",
-            "last",
+            "minimum",
+            "maximum",
             "sum",
-            "count"
+            "point",
+            "mode"
           ]
         },
-        "opensensor:range": {
+        "opensensor:plausible_range": {
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
           "items": {
             "type": "number"
           }
-        },
-        "opensensor:precision": {
-          "type": "number",
-          "exclusiveMinimum": 0
         },
         "opensensor:scale": {
           "$ref": "#/definitions/id"
@@ -231,7 +175,8 @@
               }
             },
             "method": {
-              "$ref": "#/definitions/id"
+              "type": "string",
+              "format": "uri"
             }
           },
           "additionalProperties": false
@@ -245,10 +190,6 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]*$"
-    },
-    "sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
     },
     "colorHint": {
       "type": "string",
@@ -273,36 +214,6 @@
           }
         }
       ]
-    },
-    "code": {
-      "$comment": "Same shape as a Classification extension class.",
-      "type": "object",
-      "required": [
-        "value",
-        "name"
-      ],
-      "properties": {
-        "value": {
-          "type": "integer"
-        },
-        "name": {
-          "type": "string",
-          "pattern": "^[0-9A-Za-z-_]+$"
-        },
-        "title": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "color_hint": {
-          "$ref": "#/definitions/colorHint"
-        },
-        "nodata": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false
     },
     "gate": {
       "oneOf": [

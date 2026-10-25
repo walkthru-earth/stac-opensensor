@@ -3,9 +3,12 @@
   "stac_version": "1.1.0",
   "stac_extensions": [
     "https://stac-extensions.github.io/grid/v1.1.0/schema.json",
+    "https://stac-extensions.github.io/anonymized-location/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.3.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json"
   ],
   "id": "station-3f2b9c1e-2026-10-24",
+  "collection": "station-3f2b9c1e",
   "geometry": {
     "type": "Polygon",
     "coordinates": [
@@ -53,15 +56,19 @@
     "start_datetime": "2026-10-24T00:00:00Z",
     "end_datetime": "2026-10-24T23:59:59Z",
     "grid:code": "H3-887576970bfffff",
-    "opensensor:digest": "e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b",
-    "opensensor:family": "air"
+    "anon:size": 0.008,
+    "anon:warning": "The geometry is the H3 cell chosen by the owner, not the station position."
   },
   "links": [
     {
-      "rel": "describedby",
+      "rel": "collection",
       "href": "./collection.json",
-      "type": "application/json",
-      "title": "Device profile"
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "./collection.json",
+      "type": "application/json"
     }
   ],
   "assets": {
@@ -71,6 +78,19 @@
       "title": "Reconciled day of samples",
       "roles": [
         "data"
+      ],
+      "table:row_count": 1440,
+      "table:columns": [
+        {
+          "name": "pm25_atmospheric_ug_m3",
+          "type": "int32",
+          "statistics": {
+            "minimum": 3,
+            "maximum": 41,
+            "mean": 14.2,
+            "valid_percent": 97.5
+          }
+        }
       ]
     }
   }
