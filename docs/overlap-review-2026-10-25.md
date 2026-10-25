@@ -111,7 +111,14 @@ The current v0.1.0 implements the public layer below. Three layers instead of on
 ## Still open
 
 1. Prefix of the public extension. It stays `opensensor:` for now. A neutral name such as `obs:` would help other networks adopt it.
-2. Upstream proposals for `field_id` on Table and Classification on table columns.
+2. Upstream proposals, opened 2026-10-25. If they land, the matching field here moves upstream.
+   - Table [#16](https://github.com/stac-extensions/table/issues/16) adds `field_id` to the Column Object.
+   - Table [#17](https://github.com/stac-extensions/table/issues/17) validates common metadata such as `unit` in columns.
+   - Classification [#55](https://github.com/stac-extensions/classification/issues/55) allows `classification:classes` in table columns.
+   - CF [#11](https://github.com/stac-extensions/cf/issues/11) allows `cf:standard_name` and `cf:cell_methods` in table columns.
+3. Scales, `aggregate`, `valid_when`, `settle_s`, `property`, `procedure` and `derived` stay here.
+   Classification [#33](https://github.com/stac-extensions/classification/issues/33) leaned against ranges in classes,
+   and CF `cell_methods` describes how values were made, not how to roll them up.
 
 ## Sources
 
