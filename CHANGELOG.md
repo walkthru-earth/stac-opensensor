@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`, and exact CF matches use the NERC standard name URI
+
 ## [v0.1.0] - 2026-10-25
 
 ### Added

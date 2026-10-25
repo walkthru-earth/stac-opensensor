@@ -93,7 +93,7 @@ These choices are fixed for every station.
 | Aggregation | CF `cell_methods` words, `mean` for readings, `point` for levels such as battery, `mode` for codes |
 | Code meanings | `classification:classes` on the column, `nodata` on the missing value |
 | CF names | `cf:standard_name` only where the CF definition matches exactly, never on CF=1 particle columns |
-| Property URIs | Shared vocabulary first, such as NERC P07, else `urn:walkthru-earth:<board>:property:<column>` |
+| Property URIs | Board neutral. A NERC P07 term first, then `http://vocab.nerc.ac.uk/standard_name/<cf name>/` for an exact CF match, else `urn:walkthru-earth:property:<quantity>`. Board and sensor go in `opensensor:procedure`, never in the property |
 | Column ids | `opensensor:field_id` is the 1-based FIELD order, append only |
 | Time | `event_time_utc_us`, int64 microseconds since the Unix epoch, as `table:primary_datetime` |
 | Location | H3 cell chosen by the owner, resolution 8 by default |

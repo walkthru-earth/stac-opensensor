@@ -239,7 +239,7 @@
             "physicalMeasurement"
           ],
           "cf:standard_name": "mass_concentration_of_pm1_ambient_aerosol_particles_in_air",
-          "opensensor:property": "urn:walkthru-earth:cores3:property:pm1_atmospheric_ug_m3",
+          "opensensor:property": "http://vocab.nerc.ac.uk/standard_name/mass_concentration_of_pm1_ambient_aerosol_particles_in_air/",
           "opensensor:procedure": "pmsa003",
           "opensensor:field_id": 16,
           "opensensor:valid_when": {
@@ -286,7 +286,7 @@
             "physicalMeasurement"
           ],
           "cf:standard_name": "mass_concentration_of_pm10_ambient_aerosol_particles_in_air",
-          "opensensor:property": "urn:walkthru-earth:cores3:property:pm10_atmospheric_ug_m3",
+          "opensensor:property": "http://vocab.nerc.ac.uk/standard_name/mass_concentration_of_pm10_ambient_aerosol_particles_in_air/",
           "opensensor:procedure": "pmsa003",
           "opensensor:field_id": 18,
           "opensensor:valid_when": {
@@ -309,7 +309,7 @@
           "roles": [
             "physicalMeasurement"
           ],
-          "opensensor:property": "urn:walkthru-earth:cores3:property:pm25_cf1_ug_m3",
+          "opensensor:property": "urn:walkthru-earth:property:pm25_cf1_mass_concentration",
           "opensensor:procedure": "pmsa003",
           "opensensor:field_id": 14,
           "opensensor:valid_when": {
@@ -331,7 +331,7 @@
           "roles": [
             "physicalMeasurement"
           ],
-          "opensensor:property": "urn:walkthru-earth:cores3:property:particles_gt03_per_01l",
+          "opensensor:property": "urn:walkthru-earth:property:particle_count_gt_0p3um",
           "opensensor:procedure": "pmsa003",
           "opensensor:field_id": 19,
           "opensensor:valid_when": {
@@ -428,7 +428,7 @@
       "href": "https://raw.githubusercontent.com/walkthru-earth/stac-opensensor/main/templates/cores3-telemetry-v5.json",
       "type": "application/json",
       "title": "Board template",
-      "file:checksum": "1220562e27596c62e8dda6524ee4660f5cb0cb64ec5476196c3425f4907bdf602ab3"
+      "file:checksum": "1220fb4230b3eb6e8eac881c719f900c8bd9c7e4bbd6ad247520a27368ec9d9a7218"
     },
     {
       "rel": "license",
