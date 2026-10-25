@@ -1,0 +1,26 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "id": "opensensor-space",
+  "title": "OpenSensor.Space",
+  "description": "Open station data from low-cost sensors. Each child is one station Collection.",
+  "links": [
+    {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./collection.json",
+      "type": "application/json",
+      "title": "Osu air station"
+    },
+    {
+      "rel": "license",
+      "href": "https://creativecommons.org/licenses/by/4.0/",
+      "type": "text/html",
+      "title": "CC BY 4.0"
+    }
+  ]
+}

@@ -5,7 +5,8 @@
     "https://stac-extensions.github.io/grid/v1.1.0/schema.json",
     "https://stac-extensions.github.io/anonymized-location/v1.0.0/schema.json",
     "https://stac-extensions.github.io/table/v1.3.0/schema.json",
-    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json"
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
   ],
   "id": "station-3f2b9c1e-2026-10-24",
   "collection": "station-3f2b9c1e",
@@ -61,6 +62,11 @@
   },
   "links": [
     {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
       "rel": "collection",
       "href": "./collection.json",
       "type": "application/json"
@@ -79,7 +85,7 @@
       "roles": [
         "data"
       ],
-      "table:row_count": 1440,
+      "table:row_count": 8640,
       "table:columns": [
         {
           "name": "pm25_atmospheric_ug_m3",

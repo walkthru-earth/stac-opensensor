@@ -1,0 +1,270 @@
+{
+  "type": "OpenSensorTemplate",
+  "template_version": "0.1.0",
+  "id": "cores3-telemetry-v5",
+  "title": "M5Stack CoreS3 with a Plantower PMSA003",
+  "keywords": [
+    "air quality",
+    "PM2.5",
+    "low-cost sensor"
+  ],
+  "instruments": [
+    "pmsa003",
+    "m5_imu",
+    "m5_power"
+  ],
+  "opensensor:sample_interval_s": 10,
+  "item_assets": {
+    "data": {
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ],
+      "table:primary_datetime": "event_time_utc_us",
+      "table:columns": [
+        {
+          "name": "device_id",
+          "type": "int64",
+          "roles": [
+            "referenceInformation"
+          ],
+          "opensensor:procedure": "identity",
+          "opensensor:field_id": 2
+        },
+        {
+          "name": "event_time_utc_us",
+          "type": "int64",
+          "unit": "us",
+          "roles": [
+            "coordinate"
+          ],
+          "opensensor:procedure": "clock",
+          "opensensor:field_id": 9
+        },
+        {
+          "name": "pms_status",
+          "type": "int32",
+          "roles": [
+            "qualityInformation"
+          ],
+          "classification:classes": [
+            {
+              "value": 0,
+              "name": "missing",
+              "nodata": true
+            },
+            {
+              "value": 1,
+              "name": "warming"
+            },
+            {
+              "value": 2,
+              "name": "stale"
+            },
+            {
+              "value": 3,
+              "name": "sensor-error"
+            },
+            {
+              "value": 4,
+              "name": "valid"
+            }
+          ],
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 11,
+          "opensensor:aggregate": "mode"
+        },
+        {
+          "name": "pm1_atmospheric_ug_m3",
+          "type": "int32",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm1_ambient_aerosol_particles_in_air",
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm1_atmospheric_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 16,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
+        },
+        {
+          "name": "pm25_atmospheric_ug_m3",
+          "type": "int32",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air",
+          "opensensor:property": "http://vocab.nerc.ac.uk/collection/P07/current/YUDG9DXK/",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 17,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
+        },
+        {
+          "name": "pm10_atmospheric_ug_m3",
+          "type": "int32",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm10_ambient_aerosol_particles_in_air",
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm10_atmospheric_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 18,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
+        },
+        {
+          "name": "pm25_cf1_ug_m3",
+          "type": "int32",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm25_cf1_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 14,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
+        },
+        {
+          "name": "particles_gt03_per_01l",
+          "type": "int32",
+          "unit": "{particles}/dL",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "opensensor:property": "urn:walkthru-earth:cores3:property:particles_gt03_per_01l",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 19,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            65535
+          ]
+        },
+        {
+          "name": "imu_temperature_c",
+          "type": "float",
+          "unit": "Cel",
+          "roles": [
+            "auxiliaryInformation"
+          ],
+          "opensensor:procedure": "m5_imu",
+          "opensensor:field_id": 40,
+          "opensensor:valid_when": {
+            "column": "imu_temperature_c",
+            "finite": true
+          },
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            -20,
+            85
+          ]
+        },
+        {
+          "name": "accel_z_g",
+          "type": "float",
+          "unit": "[g]",
+          "roles": [
+            "auxiliaryInformation"
+          ],
+          "opensensor:procedure": "m5_imu",
+          "opensensor:field_id": 33,
+          "opensensor:valid_when": {
+            "column": "accel_z_g",
+            "finite": true
+          },
+          "opensensor:aggregate": "mean"
+        },
+        {
+          "name": "battery_percent",
+          "type": "int32",
+          "unit": "%",
+          "roles": [
+            "auxiliaryInformation"
+          ],
+          "opensensor:procedure": "m5_power",
+          "opensensor:field_id": 48,
+          "opensensor:aggregate": "point",
+          "opensensor:plausible_range": [
+            0,
+            100
+          ]
+        }
+      ]
+    }
+  },
+  "links": [
+    {
+      "rel": "describedby",
+      "href": "https://github.com/walkthru-earth/aq-parquet/blob/ca0397ff9aa7b955f9dd444a95b65a5db44dea9a/firmware/esp-idf-cores3/bringup/telemetry_fields.inc",
+      "type": "text/plain",
+      "title": "Firmware column dictionary",
+      "file:checksum": "1220e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b"
+    }
+  ],
+  "firmware": {
+    "schema": "cores3-telemetry-v5",
+    "proto_min": 3,
+    "dict": "e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b",
+    "live_keys": {
+      "event_time_utc_us": "utc",
+      "pms_status": "pms",
+      "pm1_atmospheric_ug_m3": "pm1",
+      "pm25_atmospheric_ug_m3": "pm25",
+      "pm10_atmospheric_ug_m3": "pm10",
+      "pm25_cf1_ug_m3": "c25",
+      "particles_gt03_per_01l": "n03",
+      "imu_temperature_c": "imu_t",
+      "battery_percent": "pct"
+    },
+    "unit_labels": {
+      "device_id": "1",
+      "event_time_utc_us": "us_since_unix_epoch",
+      "pms_status": "code",
+      "particles_gt03_per_01l": "count/0.1L",
+      "imu_temperature_c": "degC",
+      "accel_z_g": "g"
+    }
+  }
+}

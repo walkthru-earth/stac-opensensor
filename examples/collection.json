@@ -6,11 +6,12 @@
     "https://stac-extensions.github.io/cf/v1.0.0/schema.json",
     "https://stac-extensions.github.io/classification/v2.0.0/schema.json",
     "https://stac-extensions.github.io/file/v2.1.0/schema.json",
-    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json"
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
   ],
   "id": "station-3f2b9c1e",
   "title": "Osu air station",
-  "description": "An M5Stack CoreS3 station with a Plantower PMSA003 particle sensor. Each Item is one reconciled day of one-minute samples.",
+  "description": "An M5Stack CoreS3 station with a Plantower PMSA003 particle sensor. Each Item is one reconciled day of 10 second samples.",
   "license": "CC-BY-4.0",
   "keywords": [
     "air quality",
@@ -18,7 +19,19 @@
     "low-cost sensor"
   ],
   "instruments": [
-    "pmsa003"
+    "pmsa003",
+    "m5_imu",
+    "m5_power"
+  ],
+  "providers": [
+    {
+      "name": "Walkthru.Earth",
+      "roles": [
+        "host",
+        "processor"
+      ],
+      "url": "https://walkthru.earth"
+    }
   ],
   "extent": {
     "spatial": {
@@ -40,7 +53,7 @@
       ]
     }
   },
-  "opensensor:sample_interval_s": 60,
+  "opensensor:sample_interval_s": 10,
   "opensensor:scales": {
     "who-2021-pm25": {
       "source": "https://www.who.int/publications/i/item/9789240034228",
@@ -58,14 +71,95 @@
         {
           "upper": 10,
           "label": {
-            "en": "Interim target 4"
+            "en": "Interim target 4",
+            "ar": "الهدف المرحلي 4"
           },
           "color_hint": "9E9D24"
         },
         {
+          "upper": 15,
+          "label": {
+            "en": "Interim target 3",
+            "ar": "الهدف المرحلي 3"
+          },
+          "color_hint": "F9A825"
+        },
+        {
+          "upper": 25,
+          "label": {
+            "en": "Interim target 2",
+            "ar": "الهدف المرحلي 2"
+          },
+          "color_hint": "EF6C00"
+        },
+        {
+          "upper": 35,
+          "label": {
+            "en": "Interim target 1",
+            "ar": "الهدف المرحلي 1"
+          },
+          "color_hint": "D84315"
+        },
+        {
           "upper": null,
           "label": {
-            "en": "Above interim target 4"
+            "en": "Above interim target 1",
+            "ar": "فوق الهدف المرحلي 1"
+          },
+          "color_hint": "C62828"
+        }
+      ]
+    },
+    "who-2021-pm10": {
+      "source": "https://www.who.int/publications/i/item/9789240034228",
+      "unit": "ug/m3",
+      "guideline": 15,
+      "steps": [
+        {
+          "upper": 15,
+          "label": {
+            "en": "Guideline",
+            "ar": "الحد الإرشادي"
+          },
+          "color_hint": "2E7D32"
+        },
+        {
+          "upper": 45,
+          "label": {
+            "en": "Interim target 4",
+            "ar": "الهدف المرحلي 4"
+          },
+          "color_hint": "9E9D24"
+        },
+        {
+          "upper": 50,
+          "label": {
+            "en": "Interim target 3",
+            "ar": "الهدف المرحلي 3"
+          },
+          "color_hint": "F9A825"
+        },
+        {
+          "upper": 75,
+          "label": {
+            "en": "Interim target 2",
+            "ar": "الهدف المرحلي 2"
+          },
+          "color_hint": "EF6C00"
+        },
+        {
+          "upper": 100,
+          "label": {
+            "en": "Interim target 1",
+            "ar": "الهدف المرحلي 1"
+          },
+          "color_hint": "D84315"
+        },
+        {
+          "upper": null,
+          "label": {
+            "en": "Above interim target 1",
+            "ar": "فوق الهدف المرحلي 1"
           },
           "color_hint": "C62828"
         }
@@ -82,13 +176,82 @@
       "table:primary_datetime": "event_time_utc_us",
       "table:columns": [
         {
+          "name": "device_id",
+          "type": "int64",
+          "title": "Device",
+          "roles": [
+            "referenceInformation"
+          ],
+          "opensensor:procedure": "identity",
+          "opensensor:field_id": 2
+        },
+        {
           "name": "event_time_utc_us",
           "type": "int64",
+          "title": "Time",
           "unit": "us",
           "roles": [
             "coordinate"
           ],
-          "opensensor:procedure": "clock"
+          "opensensor:procedure": "clock",
+          "opensensor:field_id": 9
+        },
+        {
+          "name": "pms_status",
+          "type": "int32",
+          "title": "Particle sensor status",
+          "roles": [
+            "qualityInformation"
+          ],
+          "classification:classes": [
+            {
+              "value": 0,
+              "name": "missing",
+              "nodata": true
+            },
+            {
+              "value": 1,
+              "name": "warming"
+            },
+            {
+              "value": 2,
+              "name": "stale"
+            },
+            {
+              "value": 3,
+              "name": "sensor-error"
+            },
+            {
+              "value": 4,
+              "name": "valid"
+            }
+          ],
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 11,
+          "opensensor:aggregate": "mode"
+        },
+        {
+          "name": "pm1_atmospheric_ug_m3",
+          "type": "int32",
+          "title": "PM1",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm1_ambient_aerosol_particles_in_air",
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm1_atmospheric_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 16,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
         },
         {
           "name": "pm25_atmospheric_ug_m3",
@@ -115,6 +278,74 @@
           "opensensor:scale": "who-2021-pm25"
         },
         {
+          "name": "pm10_atmospheric_ug_m3",
+          "type": "int32",
+          "title": "PM10",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "cf:standard_name": "mass_concentration_of_pm10_ambient_aerosol_particles_in_air",
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm10_atmospheric_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 18,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ],
+          "opensensor:scale": "who-2021-pm10"
+        },
+        {
+          "name": "pm25_cf1_ug_m3",
+          "type": "int32",
+          "title": "PM2.5 (CF=1)",
+          "unit": "ug/m3",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "opensensor:property": "urn:walkthru-earth:cores3:property:pm25_cf1_ug_m3",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 14,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            1000
+          ]
+        },
+        {
+          "name": "particles_gt03_per_01l",
+          "type": "int32",
+          "title": "Particles over 0.3 um",
+          "unit": "{particles}/dL",
+          "roles": [
+            "physicalMeasurement"
+          ],
+          "opensensor:property": "urn:walkthru-earth:cores3:property:particles_gt03_per_01l",
+          "opensensor:procedure": "pmsa003",
+          "opensensor:field_id": 19,
+          "opensensor:valid_when": {
+            "column": "pms_status",
+            "equals": 4
+          },
+          "opensensor:settle_s": 180,
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            0,
+            65535
+          ]
+        },
+        {
           "name": "imu_temperature_c",
           "type": "float",
           "title": "Board temperature",
@@ -123,31 +354,47 @@
             "auxiliaryInformation"
           ],
           "opensensor:procedure": "m5_imu",
+          "opensensor:field_id": 40,
           "opensensor:valid_when": {
             "column": "imu_temperature_c",
+            "finite": true
+          },
+          "opensensor:aggregate": "mean",
+          "opensensor:plausible_range": [
+            -20,
+            85
+          ]
+        },
+        {
+          "name": "accel_z_g",
+          "type": "float",
+          "title": "Acceleration Z",
+          "unit": "[g]",
+          "roles": [
+            "auxiliaryInformation"
+          ],
+          "opensensor:procedure": "m5_imu",
+          "opensensor:field_id": 33,
+          "opensensor:valid_when": {
+            "column": "accel_z_g",
             "finite": true
           },
           "opensensor:aggregate": "mean"
         },
         {
-          "name": "pms_status",
+          "name": "battery_percent",
           "type": "int32",
+          "title": "Battery",
+          "unit": "%",
           "roles": [
-            "qualityInformation"
+            "auxiliaryInformation"
           ],
-          "opensensor:procedure": "pmsa003",
-          "opensensor:aggregate": "mode",
-          "classification:classes": [
-            {
-              "value": 0,
-              "name": "missing",
-              "nodata": true
-            },
-            {
-              "value": 4,
-              "name": "valid",
-              "color_hint": "2E7D32"
-            }
+          "opensensor:procedure": "m5_power",
+          "opensensor:field_id": 48,
+          "opensensor:aggregate": "point",
+          "opensensor:plausible_range": [
+            0,
+            100
           ]
         }
       ]
@@ -155,11 +402,33 @@
   },
   "links": [
     {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "./item.json",
+      "type": "application/geo+json"
+    },
+    {
       "rel": "describedby",
-      "href": "https://github.com/walkthru-earth/aq-parquet/blob/main/firmware/esp-idf-cores3/bringup/telemetry_fields.inc",
+      "href": "https://github.com/walkthru-earth/aq-parquet/blob/ca0397ff9aa7b955f9dd444a95b65a5db44dea9a/firmware/esp-idf-cores3/bringup/telemetry_fields.inc",
       "type": "text/plain",
       "title": "Firmware column dictionary",
       "file:checksum": "1220e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b"
+    },
+    {
+      "rel": "describedby",
+      "href": "https://raw.githubusercontent.com/walkthru-earth/stac-opensensor/main/templates/cores3-telemetry-v5.json",
+      "type": "application/json",
+      "title": "Board template",
+      "file:checksum": "1220562e27596c62e8dda6524ee4660f5cb0cb64ec5476196c3425f4907bdf602ab3"
     },
     {
       "rel": "license",

@@ -105,7 +105,8 @@ The current v0.1.0 implements the public layer below. Three layers instead of on
    It reuses core `unit`, `roles`, `instruments`, `keywords` and `statistics`, plus `classification:classes`,
    `cf:standard_name`, `grid:code`, `anon:warning` and `file:checksum`.
 2. **Firmware facts.** The digest is `file:checksum` on a `describedby` link to the firmware dictionary.
-   `proto_min`, `live_key` and `unit_label` stay in the firmware descriptor the phone reads over BLE or LAN.
+   `proto_min`, `live_key` and `unit_label` stay in the [board template](../PROFILE.md#board-template),
+   the firmware descriptor the phone reads over BLE or LAN.
 3. **App profile.** `primary`, `hero`, `family` and `display_step` live in a small app file keyed by digest, outside any schema we publish.
 
 ## Still open

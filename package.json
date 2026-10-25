@@ -2,10 +2,11 @@
   "name": "stac-opensensor",
   "version": "0.1.0",
   "scripts": {
-    "test": "npm run check-markdown && npm run check-examples",
+    "test": "npm run check-markdown && npm run check-examples && npm run check-profile",
     "check-markdown": "remark . -f -r .github/remark.yaml",
-    "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json",
-    "format-examples": "stac-node-validator . --format --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json"
+    "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json",
+    "check-profile": "node scripts/check-profile.mjs",
+    "format-examples": "stac-node-validator . --format --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json"
   },
   "dependencies": {
     "remark-cli": "^12.0.0",
