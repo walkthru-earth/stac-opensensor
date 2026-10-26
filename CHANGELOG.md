@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A moving Thing's Item geometry is the union of the H3 cells its rows visited
 - Location lives in the rows, as an H3 cell, a `location_source` code and a native Parquet `geometry` cell centre
 - The default H3 resolution is 8 for fixed and moving Things
+- Board templates live at `templates/<board>/<dict>.json`, and only dated `data_HHMM_` files are published
+- PROFILE spells out the location columns in `table:columns`, the footer `board` slug and the 32 hex `boot_id`
 - Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`, and exact CF matches use the NERC standard name URI
 
 ## [v0.1.0] - 2026-10-25

@@ -8,7 +8,7 @@
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
   ],
-  "id": "data_1300_0f3a_2881-3240-0",
+  "id": "data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-3240-0",
   "collection": "3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13",
   "geometry": {
     "type": "Polygon",
@@ -80,7 +80,7 @@
   ],
   "assets": {
     "data": {
-      "href": "https://data.source.coop/walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a_2881-3240-0.parquet",
+      "href": "https://data.source.coop/walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-3240-0.parquet",
       "type": "application/vnd.apache.parquet",
       "title": "One file of samples, at most 1 hour",
       "roles": [

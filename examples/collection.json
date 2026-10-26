@@ -426,7 +426,7 @@
     },
     {
       "rel": "describedby",
-      "href": "https://raw.githubusercontent.com/walkthru-earth/stac-opensensor/main/templates/cores3-telemetry-v5.json",
+      "href": "https://raw.githubusercontent.com/walkthru-earth/stac-opensensor/main/templates/m5stack-cores3/e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b.json",
       "type": "application/json",
       "title": "Board template",
       "file:checksum": "1220fb4230b3eb6e8eac881c719f900c8bd9c7e4bbd6ad247520a27368ec9d9a7218"

@@ -33,13 +33,16 @@ const check = (validate, file, doc) => {
 };
 
 const templates = new Map();
-for (const name of readdirSync('templates').filter((n) => n.endsWith('.json'))) {
+for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
   const doc = read(file);
   check(template, file, doc);
   const dictLink = doc.links.find((l) => l.rel === 'describedby');
   if (dictLink?.['file:checksum'] !== `1220${doc.firmware.dict}`) {
     fail(file, 'describedby file:checksum does not match firmware.dict');
+  }
+  if (!/^[a-z0-9-]+\/[0-9a-f]{64}\.json$/.test(name) || !name.endsWith(`/${doc.firmware.dict}.json`)) {
+    fail(file, 'path is not templates/<board>/<firmware.dict>.json');
   }
   templates.set(`1220${sha256(file)}`, { file, doc });
 }

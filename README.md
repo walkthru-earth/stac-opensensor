@@ -22,7 +22,8 @@ It only defines what STAC core and existing extensions do not already cover, see
   - [Catalog example](examples/catalog.json) is the root of a network of Things
   - [Collection example](examples/collection.json) is one fixed Thing, with its columns in `item_assets`
   - [Item example](examples/item.json) is one uploaded file of at most 1 hour from that Thing, located by a coarse H3 cell
-  - [Board template](templates/cores3-telemetry-v5.json) is what a firmware build knows about its columns
+  - [Board template](templates/m5stack-cores3/e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b.json)
+    is what a firmware build knows about its columns
 - [JSON Schema](json-schema/schema.json)
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
 - [Changelog](./CHANGELOG.md)
