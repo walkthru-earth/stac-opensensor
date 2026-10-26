@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Parquet footer contract, one `opensensor` key holding versioned JSON in the style of the GeoParquet `geo` key
+- Footer JSON Schema, a CoreS3 example and a check that it names a known template and dictionary
+
 ### Changed
 
 - Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`, and exact CF matches use the NERC standard name URI

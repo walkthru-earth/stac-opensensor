@@ -103,6 +103,28 @@ These choices are fixed for every station.
 | Firmware facts | LIVE keys, protocol floor and unit labels stay in the template under `firmware` |
 | App choices | Card order, hero card and display step stay in the app profile |
 
+## Parquet footer
+
+Every data file carries one key, `opensensor`, in its Parquet key-value metadata, modelled on the GeoParquet `geo` key.
+The value is compact UTF-8 JSON that validates against [json-schema/footer.json](json-schema/footer.json).
+No other footer key is part of the contract.
+A file stands alone, so an indexer can build its station Collection and Item from the footer and the template it names.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| version | `"0.1.0"` | **REQUIRED**. Readers refuse an unknown major version |
+| station | object | **REQUIRED**. `id`, `device_id`, `board`, and optional `deployment_id` |
+| firmware | object | **REQUIRED**. `version`, `schema` and `boot_id` |
+| dictionary | object | **REQUIRED**. `sha256` equals `firmware.dict` in the template, plus optional `version` and `uri` |
+| template | object | **REQUIRED**. `href` and `sha256`, the SHA-256 of the exact template bytes, equal to the template link `file:checksum` without `1220` |
+| acquisition | object | **REQUIRED**. `sample_interval_ms` and `time_semantics`, plus optional `config_id`, `config` and `calibration_id` |
+| file | object | **REQUIRED**. `rotation_interval_s` at most 3600, `row_groups`, `row_group_rows_max`, `compression` and `purpose` |
+
+Numbers are JSON numbers. The footer `sample_interval_ms` is the truth for that file, and the template value is only the default.
+Code meanings, such as clock quality codes, belong in the template, not in the footer.
+DuckDB reads it with `SELECT value::JSON FROM parquet_kv_metadata('file.parquet') WHERE key = 'opensensor'`.
+Example [footers/cores3-telemetry-v5.json](footers/cores3-telemetry-v5.json).
+
 ## Board template
 
 | Field | Type | Description |

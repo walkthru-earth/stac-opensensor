@@ -2,6 +2,7 @@
 // 1. Station Collections and day Items in examples/ validate against json-schema/profile.json.
 // 2. Board templates in templates/ validate against json-schema/template.json.
 // 3. A station Collection carries its template's columns unchanged, and both checksums match.
+// 4. Parquet footers in footers/ validate against json-schema/footer.json and point at a template and its dictionary.
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import Ajv from 'ajv';
@@ -12,12 +13,13 @@ const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest(
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
-for (const name of ['schema', 'profile', 'template']) {
+for (const name of ['schema', 'profile', 'template', 'footer']) {
   ajv.addSchema(read(`json-schema/${name}.json`));
 }
 const base = 'https://walkthru-earth.github.io/stac-opensensor/v0.1.0/';
 const profile = ajv.getSchema(`${base}profile.json`);
 const template = ajv.getSchema(`${base}template.json`);
+const footer = ajv.getSchema(`${base}footer.json`);
 
 let failures = 0;
 const fail = (file, message) => {
@@ -66,7 +68,21 @@ for (const name of readdirSync('examples').filter((n) => n.endsWith('.json'))) {
   }
 }
 
+for (const name of readdirSync('footers').filter((n) => n.endsWith('.json'))) {
+  const file = `footers/${name}`;
+  const doc = read(file);
+  check(footer, file, doc);
+  const entry = templates.get(`1220${doc.template?.sha256}`);
+  if (!entry) {
+    fail(file, 'template.sha256 matches no template in templates/');
+    continue;
+  }
+  if (doc.dictionary?.sha256 !== entry.doc.firmware.dict) {
+    fail(file, `dictionary.sha256 differs from firmware.dict in ${entry.file}`);
+  }
+}
+
 if (failures > 0) {
   process.exit(1);
 }
-console.log('Profile and templates OK');
+console.log('Profile, templates and footers OK');
