@@ -101,7 +101,7 @@ The rows hold the location. The footer `opensensor` key holds none.
 | Column | Type | Meaning |
 | --- | --- | --- |
 | `h3_cell_id` | int64, nullable | H3 cell of the row, null when there is no location |
-| `h3_resolution` | int32, nullable | Resolution of that cell, at most the board's `h3_max_resolution` |
+| `h3_resolution` | int32, nullable | Resolution of that cell, 8 by default and at most the board's `h3_max_resolution` |
 | `location_source` | uint8, nullable | Where the cell came from, see below |
 | `geometry` | Parquet GEOMETRY, nullable | WKB Point at the cell centre, longitude and latitude in OGC:CRS84, no `crs` member |
 
@@ -139,7 +139,7 @@ These choices hold for every Thing.
 | Property URIs | Board neutral. A NERC P07 term first, then `http://vocab.nerc.ac.uk/standard_name/<cf name>/` for an exact CF match, else `urn:walkthru-earth:property:<quantity>`. Board and sensor go in `opensensor:procedure`, never in the property |
 | Column ids | `opensensor:field_id` is the 1-based FIELD order, append only |
 | Time | `event_time_utc_us`, int64 microseconds since the Unix epoch, as `table:primary_datetime` |
-| Location | H3 cell per row, resolution set on the board and capped by `h3_max_resolution`, see [Location](#location) |
+| Location | H3 cell per row, resolution 8 for fixed and moving Things alike, see [Location](#location) |
 | Health scales | WHO 2021 guideline and interim targets, labels in English and Arabic, `color_hint` per step |
 | Checksums | SHA-256 multihash in `file:checksum`, the `1220` prefix then 64 hex characters |
 | License | CC BY 4.0 |
