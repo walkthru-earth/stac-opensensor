@@ -118,7 +118,8 @@ A moving Thing writes the cell of each fix, so one file can hold many cells.
 The geometry is always the cell centre, never the raw fix, so the resolution sets how much a row reveals.
 Parquet geospatial statistics on `geometry` give each row group a bounding box, and readers take the file box from them.
 A file with a `geometry` column MUST also carry the standard GeoParquet 2.0.0 `geo` key, which belongs to GeoParquet, not to this profile.
-It holds `version` `"2.0.0"`, `primary_column` `geometry`, and for that column `encoding` `WKB`, `geometry_types` `["Point"]` and the file `bbox`, with no `crs`.
+It holds `version` `"2.0.0"` and `primary_column` `geometry`.
+For that column it holds `encoding` `WKB`, `geometry_types` `["Point"]` and the file `bbox`, with no `crs`.
 Without it geopandas refuses the file. GDAL, DuckDB and pyarrow with geoarrow read the native type either way.
 Points are 2D. GDAL reports a Point Z layer as an unknown type, so a height goes in its own column.
 Moving Features trajectories are out of scope for now.
