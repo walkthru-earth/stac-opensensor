@@ -143,7 +143,7 @@ These choices hold for every Thing.
 | Code meanings | `classification:classes` on the column, `nodata` on the missing value |
 | CF names | `cf:standard_name` only where the CF definition matches exactly, never on CF=1 particle columns |
 | Property URIs | Board neutral. A NERC P07 term first, then `http://vocab.nerc.ac.uk/standard_name/<cf name>/` for an exact CF match, else `urn:walkthru-earth:property:<quantity>`. Board and sensor go in `opensensor:procedure`, never in the property |
-| Column ids | `opensensor:field_id` is the 1-based FIELD order, append only |
+| Column ids | `opensensor:field_id` is the 1-based FIELD order, append only. The Thing release is a fresh baseline, every board renumbered its ids once there, and the append only rule holds from that baseline on |
 | Time | `event_time_utc_us`, int64 microseconds since the Unix epoch, as `table:primary_datetime` |
 | Location | H3 cell per row, resolution 8 for fixed and moving Things alike, see [Location](#location) |
 | Health scales | WHO 2021 guideline and interim targets, labels in English and Arabic, `color_hint` per step |
