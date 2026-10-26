@@ -8,8 +8,8 @@
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
   ],
-  "id": "station-3f2b9c1e-2026-10-24",
-  "collection": "station-3f2b9c1e",
+  "id": "data_1300_0f3a_2881-3240-0",
+  "collection": "3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13",
   "geometry": {
     "type": "Polygon",
     "coordinates": [
@@ -52,13 +52,14 @@
     5.6056766614618505
   ],
   "properties": {
-    "title": "Station day 2026-10-24",
+    "title": "Osu air sensor, 2026-10-24 13:00 UTC",
     "datetime": null,
-    "start_datetime": "2026-10-24T00:00:00Z",
-    "end_datetime": "2026-10-24T23:59:59Z",
+    "start_datetime": "2026-10-24T13:00:00Z",
+    "end_datetime": "2026-10-24T13:59:50Z",
+    "opensensor:mobility": "fixed",
     "grid:code": "H3-887576970bfffff",
     "anon:size": 0.008,
-    "anon:warning": "The geometry is the H3 cell chosen by the owner, not the station position."
+    "anon:warning": "The geometry is the H3 cell chosen by the owner, not the device position."
   },
   "links": [
     {
@@ -79,22 +80,22 @@
   ],
   "assets": {
     "data": {
-      "href": "https://data.source.coop/walkthru-earth/opensensor-space/stations/3f2b9c1e/2026/10/24.parquet",
+      "href": "https://data.source.coop/walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a_2881-3240-0.parquet",
       "type": "application/vnd.apache.parquet",
-      "title": "Reconciled day of samples",
+      "title": "One file of samples, at most 1 hour",
       "roles": [
         "data"
       ],
-      "table:row_count": 8640,
+      "table:row_count": 360,
       "table:columns": [
         {
           "name": "pm25_atmospheric_ug_m3",
           "type": "int32",
           "statistics": {
-            "minimum": 3,
-            "maximum": 41,
+            "minimum": 9,
+            "maximum": 22,
             "mean": 14.2,
-            "valid_percent": 97.5
+            "valid_percent": 98.3
           }
         }
       ]

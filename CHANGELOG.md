@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A station is now a Thing, the OGC SensorThings term. The footer object `station` is now `thing`
+- Things are fixed or moving. New field `opensensor:mobility` and footer member `thing.mobility`
+- One Item per uploaded file of at most 1 hour replaces the day Item, under `thing=<uuid>/year=YYYY/month=MM/day=DD/`
+- A moving Thing's Item geometry is the union of the H3 cells its rows visited
+- Location lives in the rows, as an H3 cell, a `location_source` code and a native Parquet `geometry` cell centre
 - Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`, and exact CF matches use the NERC standard name URI
 
 ## [v0.1.0] - 2026-10-25

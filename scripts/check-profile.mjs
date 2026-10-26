@@ -1,7 +1,7 @@
-// Checks the station profile and the board templates beyond what stac-node-validator does.
-// 1. Station Collections and day Items in examples/ validate against json-schema/profile.json.
+// Checks the Thing profile and the board templates beyond what stac-node-validator does.
+// 1. Thing Collections and file Items in examples/ validate against json-schema/profile.json.
 // 2. Board templates in templates/ validate against json-schema/template.json.
-// 3. A station Collection carries its template's columns unchanged, and both checksums match.
+// 3. A Thing Collection carries its template's columns unchanged, and both checksums match.
 // 4. Parquet footers in footers/ validate against json-schema/footer.json and point at a template and its dictionary.
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -61,9 +61,9 @@ for (const name of readdirSync('examples').filter((n) => n.endsWith('.json'))) {
     continue;
   }
   const { file: tFile, doc: t } = templates.get(link['file:checksum']);
-  const station = doc.item_assets.data['table:columns'].map(publicColumn);
+  const thing = doc.item_assets.data['table:columns'].map(publicColumn);
   const board = t.item_assets.data['table:columns'].map(publicColumn);
-  if (JSON.stringify(station) !== JSON.stringify(board)) {
+  if (JSON.stringify(thing) !== JSON.stringify(board)) {
     fail(file, `columns differ from ${tFile} beyond title and opensensor:scale`);
   }
 }

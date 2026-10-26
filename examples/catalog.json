@@ -3,7 +3,7 @@
   "stac_version": "1.1.0",
   "id": "opensensor-space",
   "title": "OpenSensor.Space",
-  "description": "Open station data from low-cost sensors. Each child is one station Collection.",
+  "description": "Open data from low-cost sensor Things. Each child is one Thing Collection.",
   "links": [
     {
       "rel": "root",
@@ -14,7 +14,7 @@
       "rel": "child",
       "href": "./collection.json",
       "type": "application/json",
-      "title": "Osu air station"
+      "title": "Osu air sensor"
     },
     {
       "rel": "license",

@@ -11,16 +11,17 @@
 
 This document explains the OpenSensor Extension to the [SpatioTemporal Asset Catalog](https://github.com/radiantearth/stac-spec) (STAC) specification.
 
-Sensor stations write their samples as tables, often Parquet files with one row per sample.
+Sensor Things, fixed or moving, write their samples as tables, often Parquet files with one row per sample.
+A Thing is the OGC SensorThings term for a device that carries sensors.
 A client needs to know what each column measures, when a value is valid and how it rolls up over time before it can show it.
 This extension adds those few facts to the column objects of the [Table](https://github.com/stac-extensions/table) extension.
 It only defines what STAC core and existing extensions do not already cover, see [What to reuse](#what-to-reuse).
 
-- [Station profile](PROFILE.md) fixes how a whole station catalog uses these fields, with a full worked example
+- [Thing profile](PROFILE.md) fixes how a whole catalog of Things uses these fields, with a full worked example
 - Examples
-  - [Catalog example](examples/catalog.json) is the root of a station network
-  - [Collection example](examples/collection.json) is an air station, with its columns in `item_assets`
-  - [Item example](examples/item.json) is one day of that station, located by a coarse H3 cell
+  - [Catalog example](examples/catalog.json) is the root of a network of Things
+  - [Collection example](examples/collection.json) is one fixed Thing, with its columns in `item_assets`
+  - [Item example](examples/item.json) is one uploaded file of at most 1 hour from that Thing, located by a coarse H3 cell
   - [Board template](templates/cores3-telemetry-v5.json) is what a firmware build knows about its columns
 - [JSON Schema](json-schema/schema.json)
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
@@ -63,6 +64,7 @@ Used at the top of a Collection and in Item Properties.
 | ---------------------------- | ------------------------------------------- | ----------- |
 | opensensor:scales            | Map\<string, [Scale Object](#scale-object)> | Health or comfort scales, keyed by scale id |
 | opensensor:sample_interval_s | number                                      | Seconds between samples |
+| opensensor:mobility          | string                                      | `fixed` when the Thing stays in one place, `moving` when it changes place |
 
 ### Additional Field Information
 
@@ -76,7 +78,7 @@ This says how to roll values up. CF `cell_methods` says how stored values were m
 
 Values outside the range are suspect and a client may flag them or use the range for chart axes.
 Unlike CF `valid_range`, values outside it are not treated as missing.
-The real range of a day goes in core `statistics` on the Item column.
+The real range of a file goes in core `statistics` on the Item column.
 
 ### Scale Object
 
