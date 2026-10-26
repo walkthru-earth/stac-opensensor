@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Parquet footer contract, one `opensensor` key holding versioned JSON in the style of the GeoParquet `geo` key
 - Footer JSON Schema, a CoreS3 example and a check that it names a known template and dictionary
+- Thing Collections declare their Hive partitions with the Portolan Partition extension v1.0.0, and a check that the glob names the Thing
+- Optional stac-geoparquet item mirror at `thing=<uuid>/items.parquet` with role `collection-mirror`
+- Thing Collections name the owner as `producer` and the host as `host`. File Items SHOULD carry `file:size` and `file:checksum`
 
 ### Changed
 

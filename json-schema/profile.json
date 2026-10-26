@@ -39,6 +39,11 @@
         "instruments",
         "opensensor:sample_interval_s",
         "opensensor:mobility",
+        "partition:scheme",
+        "partition:strategy",
+        "partition:keys",
+        "partition:glob",
+        "providers",
         "item_assets",
         "links"
       ],
@@ -56,6 +61,9 @@
             },
             {
               "$ref": "#/definitions/hasProfile"
+            },
+            {
+              "$ref": "#/definitions/hasPartition"
             }
           ]
         },
@@ -66,6 +74,80 @@
         "instruments": {
           "type": "array",
           "minItems": 1
+        },
+        "partition:scheme": {
+          "const": "hive"
+        },
+        "partition:strategy": {
+          "const": "temporal"
+        },
+        "partition:keys": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": [
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "year"
+                }
+              }
+            },
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "month"
+                }
+              }
+            },
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "day"
+                }
+              }
+            }
+          ]
+        },
+        "partition:glob": {
+          "type": "string",
+          "pattern": "/thing=[0-9a-f-]{36}/year=\\*/month=\\*/day=\\*/\\*\\.parquet$"
+        },
+        "providers": {
+          "type": "array",
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "roles": {
+                    "contains": {
+                      "const": "producer"
+                    }
+                  }
+                },
+                "required": [
+                  "roles"
+                ]
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "roles": {
+                    "contains": {
+                      "const": "host"
+                    }
+                  }
+                },
+                "required": [
+                  "roles"
+                ]
+              }
+            }
+          ]
         },
         "item_assets": {
           "type": "object",
@@ -186,6 +268,23 @@
     "hasProfile": {
       "contains": {
         "const": "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
+      }
+    },
+    "hasPartition": {
+      "contains": {
+        "const": "https://schemas.portolan-sdi.org/incubating/partition/v1.0.0/schema.json"
+      }
+    },
+    "partitionKey": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "int32"
+        }
       }
     },
     "dictionaryLink": {

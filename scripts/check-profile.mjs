@@ -3,6 +3,7 @@
 // 2. Board templates in templates/ validate against json-schema/template.json.
 // 3. A Thing Collection carries its template's columns unchanged, and both checksums match.
 // 4. Parquet footers in footers/ validate against json-schema/footer.json and point at a template and its dictionary.
+// 5. A Thing's partition:glob names the Thing, and each file Item's data href sits under it.
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import Ajv from 'ajv';
@@ -56,7 +57,14 @@ for (const name of readdirSync('examples').filter((n) => n.endsWith('.json'))) {
   }
   check(profile, file, doc);
   if (doc.type !== 'Collection') {
+    const prefix = `/opensensor-space/thing=${doc.collection}/year=`;
+    if (!new URL(doc.assets?.data?.href ?? 'x:').pathname.includes(prefix)) {
+      fail(file, `data href is not under ${prefix}`);
+    }
     continue;
+  }
+  if (!doc['partition:glob']?.includes(`/thing=${doc.id}/`)) {
+    fail(file, 'partition:glob does not name this Thing');
   }
   const link = doc.links.find((l) => l.rel === 'describedby' && templates.has(l['file:checksum']));
   if (!link) {

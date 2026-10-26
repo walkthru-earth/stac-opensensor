@@ -38,6 +38,7 @@ The app profile is the app's own choice and never goes into published STAC.
 ```text
 catalog.json                                          STAC Catalog, one child link per Thing
 thing=<uuid>/collection.json                          Thing Collection, columns in item_assets
+thing=<uuid>/items.parquet                            optional item mirror, every file Item as one row
 thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.parquet one uploaded file, at most 1 hour
 thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.json    its Item, same name
 templates/<board>/<dict>.json                         board template, cached forever by digest
@@ -52,6 +53,41 @@ Two files may share a window after a reboot or a retried upload. Readers order r
 Files written before the board knew UTC time get no Item until they are reconciled.
 Day or longer roll-ups are derived products under a separate prefix, never inside `thing=<uuid>/`.
 
+## Partitions
+
+A Thing's files are a Hive partitioned table. The Collection says so with the
+[Partition extension](https://github.com/portolan-sdi/stac-partition-extension) v1.0.0, so a reader can query
+every file of a Thing in one call without walking Items.
+
+| Field | Value |
+| --- | --- |
+| `partition:scheme` | `hive` |
+| `partition:strategy` | `temporal` |
+| `partition:keys` | `year`, `month` and `day`, in that order, each `int32`, the UTC date of the file window |
+| `partition:glob` | `s3://walkthru-earth/opensensor-space/thing=<uuid>/year=*/month=*/day=*/*.parquet` |
+
+The glob uses the S3 scheme because a glob needs listing, which plain HTTPS does not give.
+The S3 endpoint is `https://data.source.coop` and the bucket is `walkthru-earth`. Asset `href` values stay HTTPS.
+`partition:file_count` is left out, because a new file lands every hour.
+`thing` is not a key of one Thing, since it is fixed for the whole Collection.
+A query across Things globs `thing=*/year=*/month=*/day=*/*.parquet` from the catalog root.
+
+Files of one Thing can come from several board templates after a firmware update, so their columns can differ.
+Readers union by column name, `union_by_name = true` in DuckDB, and never by position.
+
+```sql
+SELECT * FROM read_parquet(
+  's3://walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=*/month=*/day=*/*.parquet',
+  hive_partitioning = true, union_by_name = true)
+WHERE year = 2026 AND month = 10 AND day = 24;
+```
+
+A Thing writes 24 or more Items a day. A publisher MAY add a
+[stac-geoparquet](https://radiantearth.github.io/stac-geoparquet-spec/latest/) item mirror at
+`thing=<uuid>/items.parquet`, so a client reads all Items in one request. It is a Collection asset with type
+`application/vnd.apache.parquet` and role `collection-mirror`. The Item JSON stays the source of truth,
+and the mirror MUST hold exactly the published Items, one row each, or not exist.
+
 ## Thing Collection
 
 | Rule | Level |
@@ -60,6 +96,9 @@ Day or longer roll-ups are derived products under a separate prefix, never insid
 | `license`, `keywords` and `instruments` are set | MUST |
 | `opensensor:sample_interval_s` is set | MUST |
 | `opensensor:mobility` is set, the same value as `thing.mobility` in the footer | MUST |
+| `stac_extensions` lists the Partition extension v1.0.0 and the fields in [Partitions](#partitions) are set | MUST |
+| `providers` holds the Thing's owner as `producer` and the data host as `host` | MUST |
+| The owner's point of contact uses the [Contacts](https://github.com/stac-extensions/contacts) extension | MAY |
 | `item_assets.data` is a Parquet asset with role `data`, `table:primary_datetime` and `table:columns` | MUST |
 | `item_assets.data` sets `table:primary_geometry` to `geometry` when the files have that column | SHOULD |
 | A `describedby` link points at the firmware dictionary with its `file:checksum` | MUST |
@@ -95,6 +134,7 @@ One Item describes one uploaded file. Its `id` is the file name without `.parque
 | `anon:size` and `anon:warning` are set | MUST |
 | `start_datetime` and `end_datetime` are the first and last row times, `datetime` is `null` | MUST |
 | `assets.data` is the Parquet file with `table:row_count` | MUST |
+| `assets.data` carries `file:size` and a SHA-256 multihash `file:checksum` of the uploaded bytes | SHOULD |
 | Measurement columns carry core `statistics` for the file | SHOULD |
 
 ## Location

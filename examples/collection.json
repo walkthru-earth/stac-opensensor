@@ -6,6 +6,7 @@
     "https://stac-extensions.github.io/cf/v1.0.0/schema.json",
     "https://stac-extensions.github.io/classification/v2.0.0/schema.json",
     "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+    "https://schemas.portolan-sdi.org/incubating/partition/v1.0.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
     "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
   ],
@@ -25,10 +26,17 @@
   ],
   "providers": [
     {
+      "name": "Osu air sensor owner",
+      "roles": [
+        "producer",
+        "licensor"
+      ]
+    },
+    {
       "name": "Walkthru.Earth",
       "roles": [
-        "host",
-        "processor"
+        "processor",
+        "host"
       ],
       "url": "https://walkthru.earth"
     }
@@ -55,6 +63,26 @@
   },
   "opensensor:sample_interval_s": 10,
   "opensensor:mobility": "fixed",
+  "partition:scheme": "hive",
+  "partition:strategy": "temporal",
+  "partition:keys": [
+    {
+      "name": "year",
+      "type": "int32",
+      "description": "UTC year of the file window"
+    },
+    {
+      "name": "month",
+      "type": "int32",
+      "description": "UTC month of the file window"
+    },
+    {
+      "name": "day",
+      "type": "int32",
+      "description": "UTC day of the file window"
+    }
+  ],
+  "partition:glob": "s3://walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=*/month=*/day=*/*.parquet",
   "opensensor:scales": {
     "who-2021-pm25": {
       "source": "https://www.who.int/publications/i/item/9789240034228",
