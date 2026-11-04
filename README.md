@@ -26,10 +26,11 @@ It only defines what STAC core and existing extensions do not already cover, see
     is one uploaded file of that Thing, located by its H3 cell
   - [Moving Thing Collection](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/collection.json)
     is one Waveshare Thing on a bike
-  - [Moving File Item](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0.json)
+  - [Moving File Item](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-487-0.json)
     is located by the union of the H3 cells it visited
   - [Board templates](templates) are what a firmware build knows about its columns, copied byte for byte
-  - [Footers](footers) are the `opensensor` Parquet footer of each example file
+  - [Footers](footers) are the `opensensor` Parquet footer and the GeoParquet `geo` key of each example file
+  - [Fixtures](fixtures) are the rows of each example file and each Thing's owner config, from which `npm run check-profile` rebuilds the examples
 - [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json)
   and [footer](json-schema/footer.json) schemas
 - [Decision register](docs/decisions.md) lists what was decided and what is still open
@@ -194,6 +195,8 @@ The extension, profile, template and footer schemas share one version, see [Vers
 3. Run `npm test` and push to `main`.
 4. Create a GitHub release named after the tag, such as `v0.2.0`, with the changelog section as notes.
 5. The `Publish JSON Schema` workflow runs the tests and copies `json-schema/` to `https://walkthru-earth.github.io/stac-opensensor/<tag>/`.
+   That host answers with a 301 redirect to `https://walkthru.earth/stac-opensensor/<tag>/`, the organization's own domain.
+   Every `$id` keeps the `github.io` host, since validators follow the redirect.
 6. Run `npm run check-examples-live` once the pages are served.
 
 A published version is never edited in place. A fix ships as a new version.
