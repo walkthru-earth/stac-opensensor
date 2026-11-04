@@ -6,7 +6,8 @@
     "check-markdown": "remark . -f -r .github/remark.yaml",
     "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json",
     "check-profile": "node scripts/check-profile.mjs",
-    "format-examples": "stac-node-validator . --format --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json"
+    "format-examples": "stac-node-validator . --format --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json",
+    "check-examples-live": "stac-node-validator . --verbose"
   },
   "dependencies": {
     "remark-cli": "^12.0.0",
@@ -20,5 +21,10 @@
     "stac-node-validator": "^1.3.0"
   },
   "license": "CC-BY-4.0",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "h3-js": "^4.5.0"
+  }
 }
