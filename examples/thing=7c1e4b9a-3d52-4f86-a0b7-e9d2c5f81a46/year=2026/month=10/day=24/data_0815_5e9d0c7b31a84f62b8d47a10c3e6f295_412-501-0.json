@@ -1,0 +1,146 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/table/v1.3.0/schema.json",
+    "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+    "https://stac-extensions.github.io/anonymized-location/v1.0.0/schema.json",
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json",
+    "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
+  ],
+  "id": "data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0",
+  "collection": "7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          31.26070644322702,
+          30.04162701583852
+        ],
+        [
+          31.26324747040906,
+          30.04634104795571
+        ],
+        [
+          31.259829638284863,
+          30.05063219298801
+        ],
+        [
+          31.25387048570393,
+          30.050209144315733
+        ],
+        [
+          31.251329696972434,
+          30.045494883980734
+        ],
+        [
+          31.245370678310426,
+          30.045071384286565
+        ],
+        [
+          31.241951916723245,
+          30.049362211412824
+        ],
+        [
+          31.23599250057747,
+          30.04893832717151
+        ],
+        [
+          31.23345237773389,
+          30.044223549458206
+        ],
+        [
+          31.236871432181157,
+          30.03993288406646
+        ],
+        [
+          31.242830316666684,
+          30.04035683465431
+        ],
+        [
+          31.24624873503418,
+          30.036066012887776
+        ],
+        [
+          31.25220722207681,
+          30.036489579075116
+        ],
+        [
+          31.254747822316556,
+          30.041203900535017
+        ],
+        [
+          31.26070644322702,
+          30.04162701583852
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    31.23345237773389,
+    30.036066012887776,
+    31.26324747040906,
+    30.05063219298801
+  ],
+  "properties": {
+    "datetime": null,
+    "start_datetime": "2026-10-24T08:15:00Z",
+    "end_datetime": "2026-10-24T08:29:50Z",
+    "opensensor:mobility": "moving",
+    "opensensor:sample_interval_s": 10,
+    "anon:size": 0.01,
+    "anon:warning": "The geometry is the H3 cells the device visited, not its track."
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../../../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../../../collection.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "collection",
+      "href": "../../../collection.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "data": {
+      "href": "./data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0.parquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ],
+      "file:size": 14211,
+      "file:checksum": "122044d2ed7a52d7fcf555547e0624e8d4cc06fd61f82704fd22428e1ec7edc49c19",
+      "table:row_count": 90,
+      "table:columns": [
+        {
+          "name": "pm25_atmospheric_ug_m3",
+          "type": "int32",
+          "statistics": {
+            "minimum": 31,
+            "maximum": 74,
+            "mean": 48.62,
+            "valid_percent": 96.67
+          }
+        },
+        {
+          "name": "pm10_atmospheric_ug_m3",
+          "type": "int32",
+          "statistics": {
+            "minimum": 52,
+            "maximum": 128,
+            "mean": 81.3,
+            "valid_percent": 96.67
+          }
+        }
+      ]
+    }
+  }
+}
