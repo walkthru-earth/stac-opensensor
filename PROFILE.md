@@ -29,6 +29,8 @@ The template carries it as `template_version` and the footer as `version`.
 While the version is 0.x, a minor bump is a breaking change.
 Readers compare the major and minor parts and refuse a pair they do not know. A patch bump never breaks a reader.
 Once a version is published, its schema files are never edited in place. A fix ships as a new version.
+The schemas use the `$id` host `walkthru-earth.github.io`, which answers with a 301 redirect to `walkthru.earth`, the organization's own domain.
+The `$id` stays as it is. Validators follow the redirect and fetch the same bytes.
 
 ## Layers
 
@@ -50,6 +52,7 @@ A template is found by an immutable URL, commit pinned or content addressed, who
 The canonical publisher is the firmware repo pinned to a full 40 character commit, at `docs/shared/templates/<board>/<dict>.json`.
 A catalog MAY mirror a template at `templates/<board>/<template sha256>.json`.
 Readers MUST check the SHA-256 of the bytes they fetch against the footer `template.sha256` or the link `file:checksum`.
+No schema can tell that a URL is immutable, so that check is a reader MUST, and a URL on a moving branch fails it once the branch moves.
 Template bytes are minified, carry no final newline and are never reformatted, so the digest stays stable.
 The `templates/` folder of this repository holds example copies only. It is not a template host.
 
@@ -65,13 +68,17 @@ templates/<board>/<template sha256>.json              optional template mirror
 ```
 
 `<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
-`HHMM` is the UTC hour and minute of the first row, and `<boot>` is the 32 hex boot id from the footer.
+`HHMM` is the UTC start of the rotation window that holds the first row, and `<boot>` is the 32 hex boot id from the footer.
+The window start is floor(first row seconds ÷ `rotation_interval_s`) × `rotation_interval_s`, as the firmware logger computes it.
+A board that boots at 13:07 with a 900 s window writes `data_1300_…` whose first row is 13:07.
 `<board>` is the board slug, such as `m5stack-cores3`.
 `<dict>` is the 64 hex digest of the firmware dictionary. The footer holds it as `dictionary.sha256` and the template as `firmware.dict`.
 A template is keyed by `<dict>` because one schema can ship with several dictionaries.
 
 Only dated `data_HHMM_` files are published. Unsynced, benchmark and other board paths stay on the device.
-A board closes a file at the end of every rotation window, 900 s by default and never longer than 1 hour, and uploads it at once.
+A board closes a file at the end of every rotation window and uploads it at once.
+The window is 600, 900, 1800 or 3600 s, 900 by default. Each divides 3600, so a window never crosses an hour or a day,
+and the date of the window is the date of its first row.
 So the newest data is at most one window old.
 Two files may share a window after a reboot or a retried upload. Readers order rows by time and drop repeats of the same Thing and time.
 Files written before the board knew UTC time get no Item until they are reconciled.
@@ -87,7 +94,7 @@ A reader can then query every file of a Thing in one call without walking Items.
 | --- | --- |
 | `partition:scheme` | `hive` |
 | `partition:strategy` | `temporal` |
-| `partition:keys` | `year`, `month` and `day`, in that order, each `int32`, the UTC date of the file window |
+| `partition:keys` | `year`, `month` and `day`, in that order, each `int32`, the UTC date of the rotation window, with the description `UTC <key> of the file window, zero padded on disk` |
 | `partition:glob` | `s3://walkthru-earth/opensensor-space/thing=<uuid>/year=*/month=*/day=*/*.parquet` |
 
 Partition values are written zero padded, `year=2026/month=09/day=05`, so paths sort by date.
@@ -123,14 +130,24 @@ and the mirror MUST hold exactly the published Items, one row each, or not exist
 
 ## Writers
 
-Each document has one writer. The board is the only writer under `thing=<uuid>/` and it never reads the bucket.
+Each document has one writer. Firmware [DR 0001](https://github.com/walkthru-earth/opensensor-space-firmware/pull/137) records the same split.
 
 | Document | Writer | When |
 | --- | --- | --- |
 | File Item | The board | At file close, as the sidecar `<file>.json`, only for dated `data_HHMM_` files |
-| Thing Collection | The board | From its upload ledger, after each upload |
+| Thing Collection | The board | From its upload ledger and owner config, after each upload |
 | Root Catalog | The catalog host's publish job | When a Thing joins or leaves the catalog |
 | `items.parquet` | The catalog host | Optional, rebuilt from the Item JSON |
+
+The board writes `collection.json` and every `<file>.json` and never reads the bucket.
+The catalog host writes only `catalog.json` and `thing=<uuid>/items.parquet`. It never edits a board document.
+
+The phone app and an indexer transport and validate these documents.
+They MAY rebuild a File Item or a Thing Collection from the files, the footers, the templates and the owner config.
+A rebuilt document MUST equal the board's under [Canonical form](#canonical-form), and a tool never publishes one that differs.
+The phone writes a File Item only when it is the Thing, that is when the phone itself logs and uploads the file.
+When the phone uploads a board's file after a BLE or LAN sync, the file and its Item are published,
+but the Collection does not list it in its extent until the board learns of that upload. Telling the board is future work.
 
 The File Item travels with its Parquet file, so the data `href` is relative, `./<file>.parquet`.
 Its links are relative too. `root` is `../../../../catalog.json`, and `parent` and `collection` are `../../../collection.json`.
@@ -141,17 +158,48 @@ The board fills the Thing Collection from four sources.
 | Source | Fields |
 | --- | --- |
 | Template | `item_assets.data` columns, `table:primary_datetime`, `table:primary_geometry`, `keywords`, `instruments`, `opensensor:sample_interval_s`, the dictionary link |
-| Footer | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
-| Upload ledger | `extent` from the Items it uploaded, the start of the temporal interval |
-| Owner config | `title`, `description`, `license`, `providers`, contacts, the bucket and prefix in `partition:glob` |
+| Footer of the newest file | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
+| Upload ledger | `extent`, the union of uploaded Item boxes and the earliest uploaded `start_datetime` |
+| Owner config | `title`, `description`, `providers`, contacts, the bucket and prefix in `partition:glob`, column `title` and `opensensor:scale`, `opensensor:scales` |
 
-Everything else, `stac_extensions`, the partition keys and the `root` and `parent` links, is fixed by this profile.
-Column `title`, `opensensor:scale` and `opensensor:scales` are optional additions by the catalog host or a regenerating tool.
-A board written Collection may leave them out.
+The owner sets the owner config at setup, and the board stores it. Everything else is fixed by this profile.
+A board never shrinks `extent`. It keeps the ledger summary, the first start time and the union box, in NVS,
+so an SD card swap or a lost ledger file does not reset it.
 
-Other tools MAY regenerate Items and Collections from the files, the footers and the templates.
-A regenerated Item MUST equal the board's Item as a JSON value. Key order and white space do not matter.
-Readers treat the published files as the truth.
+### Canonical form
+
+Two writers that follow these rules produce equal documents.
+Equal means the same JSON value. Key order and white space do not matter, array order does.
+Numbers compare as IEEE 754 doubles, so any printing that reads back to the same double is fine, such as C `%.17g`.
+Geometry coordinates, `bbox` and the Collection `extent.spatial` compare within 1e-9 degrees.
+[scripts/canonical.mjs](scripts/canonical.mjs) is the reference builder, and `npm run check-profile` rebuilds every example from its rows.
+Every rule fits an ESP32-S3. Each needs one pass over the rows, sums in doubles and H3 C.
+
+| Topic | Rule |
+| --- | --- |
+| Datetimes | RFC 3339 in UTC with `Z`. Whole seconds have no fraction, otherwise the microseconds with trailing zeros removed, such as `13:00:00.4123Z` |
+| Item times | `start_datetime` and `end_datetime` are the smallest and largest `event_time_utc_us`, `datetime` is `null` |
+| Item `opensensor:sample_interval_s` | The footer `sample_interval_ms` ÷ 1000 |
+| Statistics columns | Every column whose role is `physicalMeasurement` or `modelResult` and whose type is numeric, int8 to uint64, float or double, in template order, and only columns the file has |
+| Statistics entry | `name`, `type` and `statistics`, nothing else. `table:columns` is left out when no column qualifies |
+| Counted rows | The value is not null, is finite after a float32 value is widened exactly to a double, and passes `opensensor:valid_when`. A gate on a missing or null column fails. `opensensor:settle_s` does not remove rows |
+| `minimum` and `maximum` | The widened values, unrounded |
+| `mean` | The sum of counted values in row order ÷ their count, rounded to 2 decimals |
+| `valid_percent` | 100 × counted rows ÷ `table:row_count`, rounded to 2 decimals. A column with no counted row has only `valid_percent` `0` |
+| Rounding | Half away from zero, sign(v) × floor(\|v\| × 100 + 0.5) ÷ 100 in doubles |
+| Item `stac_extensions` | Table, File, Grid for a fixed Thing only, Anonymized Location, the OpenSensor extension, this profile, in that order |
+| Item `links` | `root`, `parent`, `collection`, in that order, each with type `application/json` |
+| Item data asset | `href`, `type` `application/vnd.apache.parquet`, `roles` `["data"]`, `file:size`, `file:checksum`, `table:row_count` and the statistics |
+| Item properties | `datetime`, `start_datetime`, `end_datetime`, `opensensor:mobility`, `opensensor:sample_interval_s`, `grid:code` for a fixed Thing, `anon:size`, `anon:warning` |
+| Geometry | The steps in [File Item](#file-item). H3 C 4.5.0 is the reference, the version the firmware vendors and h3-js 4.5.0 wraps |
+| Collection `stac_extensions` | Table, CF, Classification, File, Partition, Contacts when the owner gives a contact, the OpenSensor extension, this profile, in that order |
+| Collection `links` | `root`, `parent`, the dictionary `describedby`, the template `describedby` titled `Board template`, `license`, in that order |
+| Collection `extent` | One `bbox` from the ledger and one interval from the ledger start to `null` |
+| Collection columns | The template columns in template order, each with only the owner's `title` and `opensensor:scale` added. `opensensor:scales` is set only when a column names a scale |
+
+A file gets no Item when its name is not a dated `data_HHMM_` name, its footer has no Thing id or mobility, it has no rows,
+a row has no UTC time, no row is located, a cell is not resolution 8, or a fixed Thing file holds more than one cell.
+A null or zero `h3_cell_id` is not located.
 
 ## Thing Collection
 
@@ -168,12 +216,13 @@ Readers treat the published files as the truth.
 | `item_assets.data` sets `table:primary_geometry` to `geometry` when the files have that column | SHOULD |
 | One `describedby` link of type `text/plain` points at the firmware dictionary with its `file:checksum` | MUST |
 | A `describedby` link of type `application/json` points at the board template with its `file:checksum` | SHOULD |
-| Columns equal the template's columns, plus only `title` and `opensensor:scale` | SHOULD |
+| Columns equal the template's columns in template order, plus only `title` and `opensensor:scale` from the owner config | MUST |
 | `opensensor:scales` holds every scale a column points at | MUST |
 | `root`, `parent` and `child` links are relative | MUST |
 | No `item` links. Items are found by the partition glob, by listing or through `items.parquet` | SHOULD |
 | `extent.spatial` covers every published Item `bbox` | MUST |
 | `extent.temporal` starts at the first published `start_datetime` and ends `null` while the Thing publishes | MUST |
+| `extent` never shrinks | MUST |
 
 ## Columns
 
@@ -210,8 +259,9 @@ and is found only by listing the partition.
 | `assets.data` is the Parquet file with role `data` and `table:row_count` | MUST |
 | `assets.data` `href` is relative, `./<file>.parquet` | MUST |
 | `root`, `parent` and `collection` links are relative | MUST |
-| `assets.data` carries `file:size` and a SHA-256 multihash `file:checksum` of the uploaded bytes, with File v2.1.0 listed | SHOULD |
-| Measurement columns carry core `statistics` for the file | SHOULD |
+| `assets.data` carries `file:size` and a SHA-256 multihash `file:checksum` of the uploaded bytes, with File v2.1.0 listed | MUST |
+| `opensensor:sample_interval_s` is the footer `sample_interval_ms` ÷ 1000 | MUST |
+| Measurement columns carry core `statistics` for the file, as in [Canonical form](#canonical-form) | MUST |
 
 Geometry is built the same way by every writer, so a regenerated Item is equal to the board's.
 
@@ -230,8 +280,8 @@ That is 2 × 0.5314 km ÷ 111.32 km = 0.00955, rounded up to `0.01`. It is the s
 | `fixed` | `The geometry is the H3 cell chosen by the owner, not the device position.` |
 | `moving` | `The geometry is the H3 cells the device visited, not its track.` |
 
-`statistics` holds `minimum`, `maximum`, `mean` and `valid_percent` over the rows that pass `opensensor:valid_when`.
-`mean` and `valid_percent` are rounded to 2 decimals, half away from zero.
+`statistics` holds `minimum`, `maximum` and `mean` of the counted rows, and `valid_percent`, the counted rows over all rows.
+A row counts when its value is finite and passes `opensensor:valid_when`. [Canonical form](#canonical-form) has the exact rules.
 
 ## Location
 
@@ -326,13 +376,13 @@ A file stands alone, so a writer can build its Thing Collection and Item from th
 
 | Field | Type | Description |
 | --- | --- | --- |
-| version | `"0.1.0"` | **REQUIRED**. The shared version, see [Versioning](#versioning) |
+| version | string | **REQUIRED**. The shared version, `0.1.` then the patch, such as `"0.1.0"`, see [Versioning](#versioning) |
 | thing | object | **REQUIRED**. `id` (the Thing UUID), `device_id`, `board` (the slug used in template paths), `mobility` (`fixed` or `moving`), and optional `deployment_id` |
 | firmware | object | **REQUIRED**. `version`, `schema` and `boot_id` (32 hex characters, the same token as in the file name) |
 | dictionary | object | **REQUIRED**. `sha256` equals `firmware.dict` in the template, plus optional `version` and `uri` |
 | template | object | **REQUIRED**. `href`, an immutable URL, and `sha256`, the SHA-256 of the exact template bytes, equal to the template link `file:checksum` without `1220` |
 | acquisition | object | **REQUIRED**. `sample_interval_ms` and `time_semantics`, plus optional `config_id`, `config` and `calibration_id` |
-| file | object | **REQUIRED**. `rotation_interval_s` at most 3600, `row_groups`, `row_group_rows_max`, `compression` and `purpose` |
+| file | object | **REQUIRED**. `rotation_interval_s`, one of 600, 900, 1800 or 3600, `row_groups`, `row_group_rows_max`, `compression` and `purpose` |
 
 Three version strings sit in a footer and each means something different.
 
@@ -349,6 +399,8 @@ Three version strings sit in a footer and each means something different.
 Every footer object stays open. Readers ignore members they do not know.
 
 Numbers are JSON numbers. The footer `sample_interval_ms` is the truth for that file, and the template value is only the default.
+The Item takes its interval from the footer and the Collection from the template, so an owner who changes the interval sees both.
+`npm run check-profile` warns when they differ, and never fails.
 Code meanings, such as clock quality codes, belong in the template, not in the footer.
 DuckDB reads it with `SELECT value::JSON FROM parquet_kv_metadata('file.parquet') WHERE key = 'opensensor'`.
 Examples [footers/m5stack-cores3.json](footers/m5stack-cores3.json) and
@@ -360,7 +412,7 @@ Firmware and app docs cite this profile by its full 40 character commit.
 | Field | Type | Description |
 | --- | --- | --- |
 | type | `"OpenSensorTemplate"` | **REQUIRED** |
-| template_version | `"0.1.0"` | **REQUIRED** |
+| template_version | string | **REQUIRED**. `0.1.` then the patch, such as `"0.1.0"` |
 | id | string | **REQUIRED**. Firmware schema name, such as `cores3-telemetry-v6` |
 | title | string | Board and sensor names |
 | keywords | \[string] | Search terms, copied to the Collection |
@@ -391,10 +443,14 @@ One is a fixed M5Stack CoreS3 in Accra, the other a moving Waveshare ESP32-S3 SI
 | [examples/thing=3f2b9c1e…/collection.json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/collection.json) | Fixed Thing Collection |
 | [examples/thing=3f2b9c1e…/…/data_1300_….json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-2970-0.json) | Fixed File Item, one 900 s window |
 | [examples/thing=7c1e4b9a…/collection.json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/collection.json) | Moving Thing Collection |
-| [examples/thing=7c1e4b9a…/…/data_0815_….json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0.json) | Moving File Item, three cells |
+| [examples/thing=7c1e4b9a…/…/data_0815_….json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-487-0.json) | Moving File Item, three cells, first row 08:17:20 in the 08:15 window |
 | [footers/m5stack-cores3.json](footers/m5stack-cores3.json) | CoreS3 footer of the fixed Item's file |
 | [footers/waveshare-esp32-s3-sim7670g.json](footers/waveshare-esp32-s3-sim7670g.json) | Waveshare footer of the moving Item's file |
+| [footers/m5stack-cores3.geo.json](footers/m5stack-cores3.geo.json) and [footers/waveshare-esp32-s3-sim7670g.geo.json](footers/waveshare-esp32-s3-sim7670g.geo.json) | GeoParquet `geo` keys of the same files |
+| [fixtures/](fixtures) | The rows of each example file and each Thing's owner config, the input of the rebuild |
 
-`npm run check-profile` validates all of them. It checks that each Collection's columns and checksums match its template,
-that each Item's geometry is rebuilt from its cells as described above, that each footer matches its template and Collection,
-and that broken Items such as a resolution 7 cell or an absolute data `href` are rejected.
+`npm run check-profile` validates all of them.
+It rebuilds each Item and Collection with [scripts/canonical.mjs](scripts/canonical.mjs) and compares them with the examples.
+It checks the file name, HHMM and partition against the rotation window, the cells and the location columns of the rows,
+the Catalog child links, each footer and `geo` key against its template, Collection and rows,
+and that broken documents fail, such as a resolution 7 cell, an absolute `href`, a closed temporal interval or a footer of another template.
