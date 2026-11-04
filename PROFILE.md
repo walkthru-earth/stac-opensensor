@@ -5,12 +5,13 @@
 | Title | OpenSensor Thing Profile |
 | Profile schema | <https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json> |
 | Template schema | <https://walkthru-earth.github.io/stac-opensensor/v0.1.0/template.json> |
+| Footer schema | <https://walkthru-earth.github.io/stac-opensensor/v0.1.0/footer.json> |
 | Version | 0.1.0 |
 
 The [extension](README.md) defines fields. This profile fixes how a whole catalog of Things uses them,
 so any client can read any Thing without guessing.
 A Thing is the OGC SensorThings term for a device that carries sensors. It is fixed in one place or moving.
-It says which extensions each document must declare, which fields each column must carry and which vocabularies to use.
+The profile says which extensions each document must declare, which fields each column must carry and which vocabularies to use.
 
 A document follows the profile when it lists the profile schema in `stac_extensions`.
 STAC validators then check the profile like any other extension.
@@ -18,37 +19,60 @@ STAC validators then check the profile like any other extension.
 - [Full example](#full-example)
 - [Profile schema](json-schema/profile.json)
 - [Template schema](json-schema/template.json)
+- [Footer schema](json-schema/footer.json)
+- [Decision register](docs/decisions.md)
+
+## Versioning
+
+The extension schema, the profile schema, the template schema and the footer share one version, now 0.1.0.
+The template carries it as `template_version` and the footer as `version`.
+While the version is 0.x, a minor bump is a breaking change.
+Readers compare the major and minor parts and refuse a pair they do not know. A patch bump never breaks a reader.
+Once a version is published, its schema files are never edited in place. A fix ships as a new version.
 
 ## Layers
 
 One Thing is described by three layers. Each layer has one owner.
 
-| Layer | Owner | File | Holds |
+| Layer | Owner | Where | Holds |
 | --- | --- | --- | --- |
-| Board template | Firmware build | `templates/<board>/<dict>.json` | Columns and their meaning, sample interval, instruments, LIVE keys, protocol floor |
-| Thing Collection | Catalog publisher | `thing=<uuid>/collection.json` | Template columns plus titles, scales, mobility, location extent, license and links |
+| Board template | Firmware build | Firmware repo, `docs/shared/templates/<board>/<dict>.json` at a pinned commit | Columns and their meaning, sample interval, instruments, LIVE keys, protocol floor |
+| Thing Collection | The board, see [Writers](#writers) | `thing=<uuid>/collection.json` | Template columns, mobility, location extent, partitions, license and links |
 | App profile | Mobile app | Outside this repository | Card order, hero card, display step and column labels in each language |
 
-The board template is plain JSON, not STAC. A firmware build generates it, its SHA-256 is the descriptor digest,
-and a device can serve it over BLE or LAN. A Thing Collection is the template's columns with facts about the Thing added.
+The board template is plain JSON, not STAC. A firmware build generates it, and its SHA-256 is the descriptor digest.
+A device can serve it over BLE or LAN. A Thing Collection is the template's columns with facts about the Thing added.
 The app profile is the app's own choice and never goes into published STAC.
+
+### Template hosting
+
+A template is found by an immutable URL, commit pinned or content addressed, whose bytes hash to the digest that names it.
+The canonical publisher is the firmware repo pinned to a full 40 character commit, at `docs/shared/templates/<board>/<dict>.json`.
+A catalog MAY mirror a template at `templates/<board>/<template sha256>.json`.
+Readers MUST check the SHA-256 of the bytes they fetch against the footer `template.sha256` or the link `file:checksum`.
+Template bytes are minified, carry no final newline and are never reformatted, so the digest stays stable.
+The `templates/` folder of this repository holds example copies only. It is not a template host.
 
 ## Catalog layout
 
 ```text
-catalog.json                                          STAC Catalog, one child link per Thing
+catalog.json                                          root Catalog, one child link per Thing
 thing=<uuid>/collection.json                          Thing Collection, columns in item_assets
 thing=<uuid>/items.parquet                            optional item mirror, every file Item as one row
 thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.parquet one uploaded file, at most 1 hour
 thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.json    its Item, same name
-templates/<board>/<dict>.json                         board template, cached forever by digest
+templates/<board>/<template sha256>.json              optional template mirror
 ```
 
-`<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`, where `HHMM` is the start of the UTC window.
+`<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
+`HHMM` is the UTC hour and minute of the first row, and `<boot>` is the 32 hex boot id from the footer.
 `<board>` is the board slug, such as `m5stack-cores3`.
-`<dict>` is the 64 hex `firmware.dict`, because one schema can ship with several dictionaries.
+`<dict>` is the 64 hex digest of the firmware dictionary. The footer holds it as `dictionary.sha256` and the template as `firmware.dict`.
+A template is keyed by `<dict>` because one schema can ship with several dictionaries.
+
 Only dated `data_HHMM_` files are published. Unsynced, benchmark and other board paths stay on the device.
-A board closes a file at the end of its rotation window and uploads it at once, so the newest data is at most 1 hour old.
+A board closes a file at the end of every rotation window, 900 s by default and never longer than 1 hour, and uploads it at once.
+So the newest data is at most one window old.
 Two files may share a window after a reboot or a retried upload. Readers order rows by time and drop repeats of the same Thing and time.
 Files written before the board knew UTC time get no Item until they are reconciled.
 Day or longer roll-ups are derived products under a separate prefix, never inside `thing=<uuid>/`.
@@ -56,8 +80,8 @@ Day or longer roll-ups are derived products under a separate prefix, never insid
 ## Partitions
 
 A Thing's files are a Hive partitioned table. The Collection says so with the
-[Partition extension](https://github.com/portolan-sdi/stac-partition-extension) v1.0.0, so a reader can query
-every file of a Thing in one call without walking Items.
+[Partition extension](https://github.com/portolan-sdi/stac-partition-extension) v1.0.0, which is incubating.
+A reader can then query every file of a Thing in one call without walking Items.
 
 | Field | Value |
 | --- | --- |
@@ -66,27 +90,68 @@ every file of a Thing in one call without walking Items.
 | `partition:keys` | `year`, `month` and `day`, in that order, each `int32`, the UTC date of the file window |
 | `partition:glob` | `s3://walkthru-earth/opensensor-space/thing=<uuid>/year=*/month=*/day=*/*.parquet` |
 
+Partition values are written zero padded, `year=2026/month=09/day=05`, so paths sort by date.
+They are read as `int32`. A reader that infers types sees `09` as text, so it MUST cast the keys.
 The glob uses the S3 scheme because a glob needs listing, which plain HTTPS does not give.
-The S3 endpoint is `https://data.source.coop` and the bucket is `walkthru-earth`. Asset `href` values stay HTTPS.
-`partition:file_count` is left out, because a new file lands every hour.
+The bucket and prefix come from the owner's upload target. In the example the S3 endpoint is `https://data.source.coop`.
+`partition:file_count` is left out, because new files keep landing.
 `thing` is not a key of one Thing, since it is fixed for the whole Collection.
 A query across Things globs `thing=*/year=*/month=*/day=*/*.parquet` from the catalog root.
 
+### Reading
+
 Files of one Thing can come from several board templates after a firmware update, so their columns can differ.
-Readers union by column name, `union_by_name = true` in DuckDB, and never by position.
+Readers union by column name and never by position.
+In DuckDB that means `union_by_name = true`, plus `hive_types` so the padded keys are integers.
 
 ```sql
 SELECT * FROM read_parquet(
   's3://walkthru-earth/opensensor-space/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=*/month=*/day=*/*.parquet',
-  hive_partitioning = true, union_by_name = true)
+  hive_partitioning = true,
+  hive_types = {'year': 'INTEGER', 'month': 'INTEGER', 'day': 'INTEGER'},
+  union_by_name = true)
 WHERE year = 2026 AND month = 10 AND day = 24;
 ```
 
-A Thing writes 24 or more Items a day. A publisher MAY add a
+Without `hive_types`, DuckDB reads `month=09` as the text `09` and `month = 9` matches nothing.
+
+A Thing writes 24 to 96 Items a day. A catalog host MAY add a
 [stac-geoparquet](https://radiantearth.github.io/stac-geoparquet-spec/latest/) item mirror at
 `thing=<uuid>/items.parquet`, so a client reads all Items in one request. It is a Collection asset with type
 `application/vnd.apache.parquet` and role `collection-mirror`. The Item JSON stays the source of truth,
 and the mirror MUST hold exactly the published Items, one row each, or not exist.
+
+## Writers
+
+Each document has one writer. The board is the only writer under `thing=<uuid>/` and it never reads the bucket.
+
+| Document | Writer | When |
+| --- | --- | --- |
+| File Item | The board | At file close, as the sidecar `<file>.json`, only for dated `data_HHMM_` files |
+| Thing Collection | The board | From its upload ledger, after each upload |
+| Root Catalog | The catalog host's publish job | When a Thing joins or leaves the catalog |
+| `items.parquet` | The catalog host | Optional, rebuilt from the Item JSON |
+
+The File Item travels with its Parquet file, so the data `href` is relative, `./<file>.parquet`.
+Its links are relative too. `root` is `../../../../catalog.json`, and `parent` and `collection` are `../../../collection.json`.
+A standalone owner bucket with no catalog host MAY use the Thing Collection as its root, and `root` links then point at it.
+
+The board fills the Thing Collection from four sources.
+
+| Source | Fields |
+| --- | --- |
+| Template | `item_assets.data` columns, `table:primary_datetime`, `table:primary_geometry`, `keywords`, `instruments`, `opensensor:sample_interval_s`, the dictionary link |
+| Footer | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
+| Upload ledger | `extent` from the Items it uploaded, the start of the temporal interval |
+| Owner config | `title`, `description`, `license`, `providers`, contacts, the bucket and prefix in `partition:glob` |
+
+Everything else, `stac_extensions`, the partition keys and the `root` and `parent` links, is fixed by this profile.
+Column `title`, `opensensor:scale` and `opensensor:scales` are optional additions by the catalog host or a regenerating tool.
+A board written Collection may leave them out.
+
+Other tools MAY regenerate Items and Collections from the files, the footers and the templates.
+A regenerated Item MUST equal the board's Item as a JSON value. Key order and white space do not matter.
+Readers treat the published files as the truth.
 
 ## Thing Collection
 
@@ -101,10 +166,14 @@ and the mirror MUST hold exactly the published Items, one row each, or not exist
 | The owner's point of contact uses the [Contacts](https://github.com/stac-extensions/contacts) extension | MAY |
 | `item_assets.data` is a Parquet asset with role `data`, `table:primary_datetime` and `table:columns` | MUST |
 | `item_assets.data` sets `table:primary_geometry` to `geometry` when the files have that column | SHOULD |
-| A `describedby` link points at the firmware dictionary with its `file:checksum` | MUST |
-| A second `describedby` link points at the board template with its `file:checksum` | SHOULD |
+| One `describedby` link of type `text/plain` points at the firmware dictionary with its `file:checksum` | MUST |
+| A `describedby` link of type `application/json` points at the board template with its `file:checksum` | SHOULD |
 | Columns equal the template's columns, plus only `title` and `opensensor:scale` | SHOULD |
 | `opensensor:scales` holds every scale a column points at | MUST |
+| `root`, `parent` and `child` links are relative | MUST |
+| No `item` links. Items are found by the partition glob, by listing or through `items.parquet` | SHOULD |
+| `extent.spatial` covers every published Item `bbox` | MUST |
+| `extent.temporal` starts at the first published `start_datetime` and ends `null` while the Thing publishes | MUST |
 
 ## Columns
 
@@ -122,20 +191,47 @@ Every column has `name`, `type` and exactly one value in `roles`. The role decid
 ## File Item
 
 One Item describes one uploaded file. Its `id` is the file name without `.parquet`.
+A file with no located row gets no Item. It is still uploaded with its footer, adds nothing to the Collection extent
+and is found only by listing the partition.
 
 | Rule | Level |
 | --- | --- |
-| `stac_extensions` lists Table, Grid v1.1.0, Anonymized Location v1.0.0, the OpenSensor extension and this profile | MUST |
+| `stac_extensions` lists Table, Anonymized Location v1.0.0, the OpenSensor extension and this profile | MUST |
+| `stac_extensions` lists Grid v1.1.0 for a fixed Thing and leaves it out for a moving Thing | MUST |
 | `collection` names the Thing | MUST |
 | `opensensor:mobility` is set, the same value as in the Collection | MUST |
 | A fixed Thing's geometry is its H3 cell polygon, and `grid:code` is `H3-` plus the 15 character cell | MUST |
-| A moving Thing's geometry is the union of the H3 cells its rows visited, a Polygon or MultiPolygon | MUST |
+| A moving Thing's geometry is the union of the H3 cells its rows visited, a Polygon or MultiPolygon, with no `grid:code` | MUST |
+| Every cell is resolution 8 | MUST |
 | Geometry is never a device position, a cell centre or a track | MUST |
-| `anon:size` and `anon:warning` are set | MUST |
+| `bbox` is the bounding box of the geometry | MUST |
+| `anon:size` is `0.01` and `anon:warning` is the text below | MUST |
 | `start_datetime` and `end_datetime` are the first and last row times, `datetime` is `null` | MUST |
-| `assets.data` is the Parquet file with `table:row_count` | MUST |
-| `assets.data` carries `file:size` and a SHA-256 multihash `file:checksum` of the uploaded bytes | SHOULD |
+| `assets.data` is the Parquet file with role `data` and `table:row_count` | MUST |
+| `assets.data` `href` is relative, `./<file>.parquet` | MUST |
+| `root`, `parent` and `collection` links are relative | MUST |
+| `assets.data` carries `file:size` and a SHA-256 multihash `file:checksum` of the uploaded bytes, with File v2.1.0 listed | SHOULD |
 | Measurement columns carry core `statistics` for the file | SHOULD |
+
+Geometry is built the same way by every writer, so a regenerated Item is equal to the board's.
+
+1. Take the distinct non-null `h3_cell_id` values of the file as 15 character lowercase H3 strings.
+2. Sort them in ascending order.
+3. Call H3 `cellsToMultiPolygon` on that list with GeoJSON order, longitude first and closed rings.
+4. One polygon becomes a GeoJSON Polygon, more become a MultiPolygon. Coordinates are kept as H3 returns them.
+
+A fixed Thing follows the same steps with its one cell. `bbox` is the minimum and maximum of every coordinate.
+
+`anon:size` is twice the mean H3 edge length at resolution 8 in degrees at 111.32 km a degree.
+That is 2 × 0.5314 km ÷ 111.32 km = 0.00955, rounded up to `0.01`. It is the same for fixed and moving Things.
+
+| Mobility | `anon:warning` |
+| --- | --- |
+| `fixed` | `The geometry is the H3 cell chosen by the owner, not the device position.` |
+| `moving` | `The geometry is the H3 cells the device visited, not its track.` |
+
+`statistics` holds `minimum`, `maximum`, `mean` and `valid_percent` over the rows that pass `opensensor:valid_when`.
+`mean` and `valid_percent` are rounded to 2 decimals, half away from zero.
 
 ## Location
 
@@ -143,30 +239,43 @@ The rows hold the location. The footer `opensensor` key holds none.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
-| `h3_cell_id` | int64, nullable | H3 cell of the row, null when there is no location |
-| `h3_resolution` | int32, nullable | Resolution of that cell, 8 by default, never finer than the owner's configured maximum |
+| `h3_cell_id` | int64, nullable | H3 cell of the row |
+| `h3_resolution` | int32, nullable | Resolution of that cell, 8 in published data |
 | `location_source` | uint8, nullable | Where the cell came from, see below |
 | `geometry` | Parquet GEOMETRY, nullable | WKB Point at the cell centre, longitude and latitude in OGC:CRS84, no `crs` member |
 
+A row with no location has null in all four columns. Never a 0 and never a partial set.
+
 | `location_source` | Meaning |
 | --- | --- |
-| 0 | None |
+| 0 | Reserved and never written. Kept in `classification:classes` as `nodata` |
 | 1 | Configured by the owner, the usual case for a fixed Thing |
 | 2 | The device's own GNSS fix |
 | 3 | A fix sent by the phone app |
+
+Every published Thing uses resolution 8, fixed or moving. A cell is about 0.74 km² with an edge of about 530 m.
+`h3_resolution` is the resolution of the row's cell, so it is 8 in every published row. A publisher never coarsens.
 
 In `table:columns`, `h3_cell_id` is type `int64` and `h3_resolution` type `int32`, both role `referenceInformation`.
 `location_source` is type `uint8`, role `qualityInformation`, aggregate `mode`.
 Its codes go in `classification:classes` like every other code column.
 `geometry` is type `geometry`, role `coordinate`, with no `unit`, and the data asset sets `table:primary_geometry` to `geometry`.
+
 A fixed Thing writes its configured cell in every row with `location_source` 1.
+When the owner moves a fixed Thing to a new cell, the firmware starts a new file and mobility stays `fixed`.
+The Collection extent then covers every published cell.
+Rows of the old cell stay in the old files unless the owner deletes those files.
+
 A moving Thing writes the cell of each fix, so one file can hold many cells.
+Its Item `bbox` is the box of the cell union, and the Collection extent is the union of the Item boxes.
+
 The geometry is always the cell centre, never the raw fix, so the resolution sets how much a row reveals.
 Parquet geospatial statistics on `geometry` give each row group a bounding box, and readers take the file box from them.
 A file with a `geometry` column MUST also carry the standard GeoParquet 2.0.0 `geo` key, which belongs to GeoParquet, not to this profile.
 It holds `version` `"2.0.0"` and `primary_column` `geometry`.
 For that column it holds `encoding` `WKB`, `geometry_types` `["Point"]` and the file `bbox`, with no `crs`.
-Without it geopandas refuses the file. GDAL, DuckDB and pyarrow with geoarrow read the native type either way.
+That `bbox` is over the cell centres of the located rows. A file with no located row has no `bbox`.
+Without the `geo` key geopandas refuses the file. GDAL, DuckDB and pyarrow with geoarrow read the native type either way.
 Points are 2D. GDAL reports a Point Z layer as an unknown type, so a height goes in its own column.
 Moving Features trajectories are out of scope for now.
 
@@ -192,28 +301,58 @@ These choices hold for every Thing.
 | Firmware facts | LIVE keys, protocol floor and unit labels stay in the template under `firmware` |
 | App choices | Card order, hero card and display step stay in the app profile |
 
+## OGC SensorThings mapping
+
+The profile reuses the SensorThings words so a SensorThings client maps it without guessing.
+
+| SensorThings entity | OpenSensor |
+| --- | --- |
+| Thing | One Thing Collection, `thing=<uuid>/`, footer `thing.id` |
+| Datastream | One measurement column of the Thing, its `table:columns` entry with `opensensor:field_id` and `unit` |
+| ObservedProperty | `opensensor:property` of the column |
+| Sensor | `opensensor:procedure` of the column, listed in `instruments` |
+| Observation | One value in one row. `phenomenonTime` is `event_time_utc_us`, `result` is the value |
+| Location | The H3 cell. For a fixed Thing the Item `grid:code`, for a moving Thing the row `h3_cell_id` |
+| HistoricalLocation | The rows over time. Each row carries the cell it was taken in |
+| FeatureOfInterest | The air in the H3 cell of the row |
+
 ## Parquet footer
 
 Every data file carries one key of ours, `opensensor`, in its Parquet key-value metadata, modelled on the GeoParquet `geo` key.
 The standard `geo` key sits beside it, see [Location](#location).
 The value is compact UTF-8 JSON that validates against [json-schema/footer.json](json-schema/footer.json).
 No other key of ours is part of the contract.
-A file stands alone, so an indexer can build its Thing Collection and Item from the footer, the rows and the template it names.
+A file stands alone, so a writer can build its Thing Collection and Item from the footer, the rows and the template it names.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| version | `"0.1.0"` | **REQUIRED**. Readers refuse an unknown major version |
+| version | `"0.1.0"` | **REQUIRED**. The shared version, see [Versioning](#versioning) |
 | thing | object | **REQUIRED**. `id` (the Thing UUID), `device_id`, `board` (the slug used in template paths), `mobility` (`fixed` or `moving`), and optional `deployment_id` |
 | firmware | object | **REQUIRED**. `version`, `schema` and `boot_id` (32 hex characters, the same token as in the file name) |
 | dictionary | object | **REQUIRED**. `sha256` equals `firmware.dict` in the template, plus optional `version` and `uri` |
-| template | object | **REQUIRED**. `href` and `sha256`, the SHA-256 of the exact template bytes, equal to the template link `file:checksum` without `1220` |
+| template | object | **REQUIRED**. `href`, an immutable URL, and `sha256`, the SHA-256 of the exact template bytes, equal to the template link `file:checksum` without `1220` |
 | acquisition | object | **REQUIRED**. `sample_interval_ms` and `time_semantics`, plus optional `config_id`, `config` and `calibration_id` |
 | file | object | **REQUIRED**. `rotation_interval_s` at most 3600, `row_groups`, `row_group_rows_max`, `compression` and `purpose` |
+
+Three version strings sit in a footer and each means something different.
+
+| Field | Changes when |
+| --- | --- |
+| `firmware.version` | Any firmware release, such as `idf-cores3-parquet-v6.23` |
+| `firmware.schema` | The column layout changes. It equals the template `id`, such as `cores3-telemetry-v6` |
+| `dictionary.version` | The dictionary text changes. Only a label, the digest `dictionary.sha256` identifies it |
+
+`purpose` is `telemetry` for a normal file. `codec-comparison-duplicate-rows` marks a benchmark copy that repeats rows and is never published.
+`time_semantics` is free text from the firmware. It says which instant `event_time_utc_us` estimates. Readers show it and never parse it.
+`compression` is the upper case Parquet codec, `LZ4_RAW` or `UNCOMPRESSED` on today's boards.
+`acquisition.config` is the acquisition settings as compact JSON text. `deployment_id` and `calibration_id` are `unknown` until the owner sets them.
+Every footer object stays open. Readers ignore members they do not know.
 
 Numbers are JSON numbers. The footer `sample_interval_ms` is the truth for that file, and the template value is only the default.
 Code meanings, such as clock quality codes, belong in the template, not in the footer.
 DuckDB reads it with `SELECT value::JSON FROM parquet_kv_metadata('file.parquet') WHERE key = 'opensensor'`.
-Example [footers/cores3-telemetry-v5.json](footers/cores3-telemetry-v5.json).
+Examples [footers/m5stack-cores3.json](footers/m5stack-cores3.json) and
+[footers/waveshare-esp32-s3-sim7670g.json](footers/waveshare-esp32-s3-sim7670g.json).
 Firmware and app docs cite this profile by its full 40 character commit.
 
 ## Board template
@@ -222,7 +361,7 @@ Firmware and app docs cite this profile by its full 40 character commit.
 | --- | --- | --- |
 | type | `"OpenSensorTemplate"` | **REQUIRED** |
 | template_version | `"0.1.0"` | **REQUIRED** |
-| id | string | **REQUIRED**. Firmware schema name, such as `cores3-telemetry-v5` |
+| id | string | **REQUIRED**. Firmware schema name, such as `cores3-telemetry-v6` |
 | title | string | Board and sensor names |
 | keywords | \[string] | Search terms, copied to the Collection |
 | instruments | \[string] | **REQUIRED**. Procedures, copied to the Collection |
@@ -241,14 +380,21 @@ Firmware and app docs cite this profile by its full 40 character commit.
 
 ## Full example
 
-The examples describe a real M5Stack CoreS3 build, firmware schema `cores3-telemetry-v5`.
-The template lists 11 of its 81 columns, one or more of each kind. A generated template lists them all.
+The examples describe two real boards with the templates their firmware generates, copied byte for byte.
+One is a fixed M5Stack CoreS3 in Accra, the other a moving Waveshare ESP32-S3 SIM7670G in Cairo.
 
 | File | Layer |
 | --- | --- |
-| [templates/m5stack-cores3/e5060fb7….json](templates/m5stack-cores3/e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b.json) | Board template, `dict` `e5060fb7…` |
+| [templates/m5stack-cores3/3b4d8500….json](templates/m5stack-cores3/3b4d8500a19f42c6743b0f7d725276c96ca14a0c249f613048603afbc3cfaff9.json) | CoreS3 template, `cores3-telemetry-v6`, 81 columns |
+| [templates/waveshare-esp32-s3-sim7670g/a8605aaf….json](templates/waveshare-esp32-s3-sim7670g/a8605aafb6f76b794e9e7fb32927be6d203afeeb14527206c0e49c1eb0436809.json) | Waveshare template, `waveshare-sim7670g-telemetry-v6`, 62 columns |
 | [examples/catalog.json](examples/catalog.json) | Root Catalog |
-| [examples/collection.json](examples/collection.json) | Thing Collection made from the template |
-| [examples/item.json](examples/item.json) | File Item, one hour |
+| [examples/thing=3f2b9c1e…/collection.json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/collection.json) | Fixed Thing Collection |
+| [examples/thing=3f2b9c1e…/…/data_1300_….json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-2970-0.json) | Fixed File Item, one 900 s window |
+| [examples/thing=7c1e4b9a…/collection.json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/collection.json) | Moving Thing Collection |
+| [examples/thing=7c1e4b9a…/…/data_0815_….json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0.json) | Moving File Item, three cells |
+| [footers/m5stack-cores3.json](footers/m5stack-cores3.json) | CoreS3 footer of the fixed Item's file |
+| [footers/waveshare-esp32-s3-sim7670g.json](footers/waveshare-esp32-s3-sim7670g.json) | Waveshare footer of the moving Item's file |
 
-`npm run check-profile` validates all of them and checks that the Collection's columns and checksums match the template.
+`npm run check-profile` validates all of them. It checks that each Collection's columns and checksums match its template,
+that each Item's geometry is rebuilt from its cells as described above, that each footer matches its template and Collection,
+and that broken Items such as a resolution 7 cell or an absolute data `href` are rejected.
