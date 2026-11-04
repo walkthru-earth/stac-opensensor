@@ -9,6 +9,13 @@ jobs:
       - name: Inject env variables
         uses: rlespinasse/github-slug-action@v5.6.0
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+      - name: Test before publishing
+        run: |
+          npm ci
+          npm test
       - name: deploy JSON Schema for version ${{ env.GITHUB_REF_SLUG }}
         uses: peaceiris/actions-gh-pages@v4.1.0
         with:
