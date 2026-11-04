@@ -31,11 +31,12 @@ Status words mean the following.
 | OD-2026-11-04-A | Version. The v0.1.0 release is cut again on 2026-11-04 and every `$id` stays `/v0.1.0/`. The Station pre-release tag of 2026-10-25 was replaced before any outside use. The extension, profile, template and footer share one version. While the version is 0.x a minor bump is breaking, and readers compare major and minor. Schema files of a published version are never edited in place. | decided |
 | OD-2026-11-04-B | H3 resolution. Every published Thing uses resolution 8. A publisher never coarsens. `h3_resolution` is the resolution of the cell and is 8 in published data. | decided |
 | OD-2026-11-04-C | Templates. `template.href` is any immutable URL, commit pinned or content addressed, whose bytes hash to `sha256`. The canonical publisher is the firmware repo at a full commit, `docs/shared/templates/<board>/<dict>.json`. A catalog MAY mirror templates at `templates/<board>/<template sha256>.json`. Readers MUST check the digest. The `templates/` folder in this repo holds example copies only. | decided |
-| OD-2026-11-04-D | Writers. The board writes the File Item as a sidecar at file close, and the Thing Collection from its upload ledger. The catalog host writes the root Catalog and the optional `items.parquet`. Other tools MAY regenerate, and the result MUST equal what the board wrote. See [Writers](../PROFILE.md#writers). | decided |
+| OD-2026-11-04-D | Writers. The board writes the File Item as a sidecar at file close, and the Thing Collection from its upload ledger and owner config. The catalog host writes the root Catalog and the optional `items.parquet`. The phone and an indexer transport and validate. They MAY rebuild, and the result MUST equal what the board wrote under the canonical form. The phone writes an Item only when it is the Thing. Firmware DR 0001 in opensensor-space-firmware pull request 137 records the same split. See [Writers](../PROFILE.md#writers). | decided |
 
 ## Bridge register
 
-Rows 1 to 9 come from the bridge's open questions, rows 10 to 16 and 25 onward from its owner review decisions.
+Rows 1 to 9 come from the bridge's open questions.
+Of the later rows, rows 10 to 16, 25 to 27, 31 to 35 and 40 come from its decisions, the rest from its questions.
 Numbers the bridge never used, or used only for notes, are left out.
 
 | Id | Topic | Status on 2026-11-04 |
@@ -74,7 +75,7 @@ Numbers the bridge never used, or used only for notes, are left out.
 | D34 | H3 resolution 8 for every Thing | decided, confirmed by OD-B |
 | D35 | Three repo alignment at spec commit 4408c4e. Templates at `templates/<board>/<dict>.json` | decided, path rule refined by OD-C |
 | D36 | Fresh field table baseline, no old support | decided |
-| Q37 | Seven spec gaps from the firmware audit, stac issue #1 | closed by this release. See the note below |
+| Q37 | Seven spec gaps from the firmware audit, stac issue #1 | open. Parts 1 to 6 answered in PROFILE, part 7 app warning pending owner |
 | Q38 | Day compaction drops `geometry` and the `geo` key | open |
 | Q39 | Res 7 in mobile store text against res 8 in the spec | closed by OD-B. Res 8 |
 | D40 | Partition extension on the Thing Collection, spec commit 815fc45 | decided |
@@ -83,12 +84,13 @@ Numbers the bridge never used, or used only for notes, are left out.
 | Q43 | `pms_status` class 6 `sleeping` | closed. On firmware main |
 | Q44 | `shipped.lock` baseline rule | closed. In the firmware plugins README |
 
-Notes on the closed questions.
+Notes on the questions.
 
-- Q37. The seven gaps are answered in [PROFILE.md](../PROFILE.md).
+- Q37. Parts 1 to 6 are answered in [PROFILE.md](../PROFILE.md).
   No location is null in all four location columns. `h3_resolution` is the cell resolution and is 8.
   The `geo` bbox is over cell centres. A moving Item has the union of its cells as geometry.
-  A fixed Thing that moves starts a new file. The footer version is 0.1.0 under OD-A. Item links are relative.
+  A fixed Thing that moves starts a new file. Item links are relative.
+  Part 7, whether the app warns when its phone fix is far from the configured cell, waits for the owner.
 - Q41. A file with no located row gets no Item and adds nothing to the Collection extent.
   The board still uploads it with its footer, so the rows are kept and a reader that lists the partition finds them.
   Its `geo` key has no bbox. It never appears on a map.
@@ -101,7 +103,7 @@ Notes on the closed questions.
 - 2026-10-26. Spec aligned with firmware at 4408c4e (D35), fresh field ids, then the Partition extension at 815fc45 (D40).
 - 2026-10-27. Firmware decision records 0001 and 0002 proposed. Waveshare moving Thing landed in firmware.
 - 2026-10-28 to 11-03. No activity in any repo.
-- 2026-11-04. Owner decisions A to D. Spec gaps closed and v0.1.0 cut again.
+- 2026-11-04. Owner decisions A to D. Q37 parts 1 to 6 answered, canonical form added and v0.1.0 cut again.
 
 ## Rebuilt history
 
@@ -128,7 +130,7 @@ These rows were rebuilt from issues and decision records, not from the bridge. T
 | H17 | 10-27 | Old archives were erased, no migration needed | decided |
 | H18 | 10-09 | Mobile shell on Navigation 3, mobile ADR 0001 | decided, owner review pending |
 | H19 | 10-27 | Health data stays out of the published contract | decided |
-| DR0001 | 10-27 | Firmware record 0001, option C, the publish Action indexes STAC | superseded by OD-D |
+| DR0001 | 10-27 | Firmware record 0001, option C, the publish Action indexes STAC | superseded by OD-D. Firmware pull request 137 rewrites the record to match |
 | DR0002 | 10-27 | Firmware record 0002, small board files and a cloud compactor on Iceberg v3 | open |
 
 ## Open questions
@@ -146,3 +148,5 @@ These rows were rebuilt from issues and decision records, not from the bridge. T
 | Footer for rebuilt partial files | Q30 | firmware, then spec |
 | Geometry and the `geo` key in day files | Q38 | owner |
 | Compactor host, public tier and partition grain | DR0002 | owner |
+| Should the app warn when its phone fix is far from the configured cell | Q37 part 7 | owner |
+| How the board learns of a file the phone uploaded after a BLE or LAN sync, so the Collection lists it | OD-D | firmware and mobile |
