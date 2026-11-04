@@ -20,11 +20,19 @@ It only defines what STAC core and existing extensions do not already cover, see
 - [Thing profile](PROFILE.md) fixes how a whole catalog of Things uses these fields, with a full worked example
 - Examples
   - [Catalog example](examples/catalog.json) is the root of a network of Things
-  - [Collection example](examples/collection.json) is one fixed Thing, with its columns in `item_assets`
-  - [Item example](examples/item.json) is one uploaded file of at most 1 hour from that Thing, located by a coarse H3 cell
-  - [Board template](templates/m5stack-cores3/e5060fb7fedbcabf665b1c8a159a77f5fe9283ac34bd2d89f1bc98b0f027d38b.json)
-    is what a firmware build knows about its columns
-- [JSON Schema](json-schema/schema.json)
+  - [Fixed Thing Collection](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/collection.json)
+    is one CoreS3 Thing in one place, with its columns in `item_assets`
+  - [Fixed File Item](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-2970-0.json)
+    is one uploaded file of that Thing, located by its H3 cell
+  - [Moving Thing Collection](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/collection.json)
+    is one Waveshare Thing on a bike
+  - [Moving File Item](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-501-0.json)
+    is located by the union of the H3 cells it visited
+  - [Board templates](templates) are what a firmware build knows about its columns, copied byte for byte
+  - [Footers](footers) are the `opensensor` Parquet footer of each example file
+- [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json)
+  and [footer](json-schema/footer.json) schemas
+- [Decision register](docs/decisions.md) lists what was decided and what is still open
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
 - [Changelog](./CHANGELOG.md)
 
@@ -130,9 +138,13 @@ Use these instead of new fields.
 | CF name | `cf:standard_name` from [CF](https://github.com/stac-extensions/cf) v1.0.0 |
 | Sensor models | Core `instruments` on the Collection |
 | Real minimum, maximum and mean | Core `statistics` on the Item column |
-| Location cell | `grid:code` from [Grid](https://github.com/stac-extensions/grid) v1.1.0, such as `H3-887576970bfffff` |
-| Coarse location | `anon:size` and `anon:warning` from [Anonymized Location](https://github.com/stac-extensions/anonymized-location) v1.0.0 |
-| Firmware dictionary digest | `file:checksum` on a `describedby` link, from [File](https://github.com/stac-extensions/file) v2.1.0 |
+| Location cell of a fixed Thing | `grid:code` from [Grid](https://github.com/stac-extensions/grid) v1.1.0, such as `H3-887576970bfffff` |
+| Coarse location, fixed or moving | `anon:size` and `anon:warning` from [Anonymized Location](https://github.com/stac-extensions/anonymized-location) v1.0.0 |
+| Firmware dictionary and template digests | `file:checksum` on a `describedby` link, from [File](https://github.com/stac-extensions/file) v2.1.0 |
+| Size and digest of a data file | `file:size` and `file:checksum` on the asset, from [File](https://github.com/stac-extensions/file) v2.1.0 |
+| Hive partitions of a Thing's files | `partition:*` from the incubating [Partition](https://github.com/portolan-sdi/stac-partition-extension) extension v1.0.0 |
+| Owner point of contact | `contacts` from [Contacts](https://github.com/stac-extensions/contacts) |
+| All Items of a Thing in one file | A [stac-geoparquet](https://radiantearth.github.io/stac-geoparquet-spec/latest/) item mirror |
 | Search terms | Core `keywords` |
 
 Device wire details such as live JSON keys and protocol versions, and app choices such as which column shows first, are not part of this extension.
@@ -168,7 +180,23 @@ Then run the checks.
 npm test
 ```
 
+`npm test` checks the Markdown, validates the examples against the local schemas and runs `scripts/check-profile.mjs`.
+The profile check also makes sure that broken Items, such as a resolution 7 cell, fail.
+After a release, `npm run check-examples-live` validates the examples against the published schemas.
 To format the examples, run `npm run format-examples`.
+
+## Releasing
+
+The extension, profile, template and footer schemas share one version, see [Versioning](PROFILE.md#versioning).
+
+1. Make every `$id`, every `stac_extensions` URL and the footer `version` name the new version.
+2. Move the changes under `Unreleased` in the [Changelog](CHANGELOG.md) to a dated section for the version.
+3. Run `npm test` and push to `main`.
+4. Create a GitHub release named after the tag, such as `v0.2.0`, with the changelog section as notes.
+5. The `Publish JSON Schema` workflow runs the tests and copies `json-schema/` to `https://walkthru-earth.github.io/stac-opensensor/<tag>/`.
+6. Run `npm run check-examples-live` once the pages are served.
+
+A published version is never edited in place. A fix ships as a new version.
 
 ## License
 

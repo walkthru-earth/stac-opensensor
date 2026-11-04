@@ -7,38 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [v0.1.0] - 2026-11-04
 
-- Parquet footer contract, one `opensensor` key holding versioned JSON in the style of the GeoParquet `geo` key
-- Footer JSON Schema, a CoreS3 example and a check that it names a known template and dictionary
-- Thing Collections declare their Hive partitions with the Portolan Partition extension v1.0.0, and a check that the glob names the Thing
-- Optional stac-geoparquet item mirror at `thing=<uuid>/items.parquet` with role `collection-mirror`
-- Thing Collections name the owner as `producer` and the host as `host`. File Items SHOULD carry `file:size` and `file:checksum`
-
-### Changed
-
-- A station is now a Thing, the OGC SensorThings term. The footer object `station` is now `thing`
-- Things are fixed or moving. New field `opensensor:mobility` and footer member `thing.mobility`
-- One Item per uploaded file of at most 1 hour replaces the day Item, under `thing=<uuid>/year=YYYY/month=MM/day=DD/`
-- A moving Thing's Item geometry is the union of the H3 cells its rows visited
-- Location lives in the rows, as an H3 cell, a `location_source` code and a native Parquet `geometry` cell centre
-- The default H3 resolution is 8 for fixed and moving Things
-- Board templates live at `templates/<board>/<dict>.json`, and only dated `data_HHMM_` files are published
-- PROFILE spells out the location columns in `table:columns`, the footer `board` slug and the 32 hex `boot_id`
-- Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`, and exact CF matches use the NERC standard name URI
-
-## [v0.1.0] - 2026-10-25
+The first public release. A pre-release tag named v0.1.0 was cut on 2026-10-25 for the Station draft.
+It was replaced by this release before any outside use, so nothing published under that tag needs to keep working.
 
 ### Added
 
 - Column fields for observed property, procedure, Parquet field id, validity gate, warm-up, roll-up method, plausible range,
   scale and derived columns
-- Collection and Item fields for health scales and sample interval
-- Example air station Collection with its columns in `item_assets`
-- Example station day Item located by a coarse H3 cell, with day statistics
-- Station profile with its own schema, fixing required extensions, column rules per role and conventions
-- Board template schema for what a firmware build knows about its columns, with a CoreS3 example
-- Example root Catalog, and a check that a station's columns and checksums match its template
+- Collection and Item fields for health scales, sample interval and mobility, `fixed` or `moving`
+- Thing profile with its own schema, fixing required extensions, column rules per role and conventions
+- Board template schema for what a firmware build knows about its columns
+- Parquet footer contract, one `opensensor` key holding versioned JSON in the style of the GeoParquet `geo` key, with its JSON Schema
+- Thing Collections declare their Hive partitions with the Portolan Partition extension v1.0.0
+- Optional stac-geoparquet item mirror at `thing=<uuid>/items.parquet` with role `collection-mirror`
+- Writers section. The board writes the File Item and the Thing Collection, the catalog host writes the root Catalog
+- Versioning section. The extension, profile, template and footer share one version
+- OGC SensorThings mapping and a DuckDB reading example with `hive_types`
+- Examples from the real CoreS3 and Waveshare firmware templates, one fixed and one moving Thing, with a footer per board
+- Decision register in `docs/decisions.md`, merging the ecosystem bridge and the owner decisions of 2026-11-04
+- `check-profile` rebuilds Item geometry from H3 cells, checks footers against templates and Collections, and rejects broken Items
+
+### Rules
+
+- One Item per uploaded file of at most 1 hour, beside the file under `thing=<uuid>/year=YYYY/month=MM/day=DD/`
+- File Item `href` and links are relative. `datetime` is `null`
+- Every published Thing uses H3 resolution 8. `anon:size` is `0.01`
+- A fixed Item lists Grid and sets `grid:code`. A moving Item leaves Grid out and its geometry is the union of the cells it visited
+- No location is null in all four location columns. `location_source` 0 is reserved
+- Templates are fetched from any immutable URL and readers check their SHA-256
+- Property URIs are board neutral. The local fallback is `urn:walkthru-earth:property:<quantity>`
 
 [Unreleased]: <https://github.com/walkthru-earth/stac-opensensor/compare/v0.1.0...HEAD>
 [v0.1.0]: <https://github.com/walkthru-earth/stac-opensensor/tree/v0.1.0>
