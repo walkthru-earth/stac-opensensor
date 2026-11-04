@@ -191,6 +191,7 @@ To format the examples, run `npm run format-examples`.
 The extension, profile, template and footer schemas share one version, see [Versioning](PROFILE.md#versioning).
 
 1. Make every `$id`, every `stac_extensions` URL and the footer `version` name the new version.
+   The full list, with the scripts, patterns and test cases that also move, is in [AGENTS.md](AGENTS.md#frozen-release).
 2. Move the changes under `Unreleased` in the [Changelog](CHANGELOG.md) to a dated section for the version.
 3. Run `npm test` and push to `main`.
 4. Create a GitHub release named after the tag, such as `v0.2.0`, with the changelog section as notes.

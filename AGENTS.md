@@ -26,13 +26,23 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 
 ## Frozen release
 
-- v0.1.0 is released and frozen (OD-2026-11-04-A). Never edit a released schema, template, footer, fixture or example in place.
+- OD-2026-11-04-A freezes the published v0.1.0 schema files. This repo extends the freeze to templates, footers,
+  fixtures and examples, because the firmware and the app copy them byte for byte. Never edit any of them in place.
   A change ships as a new version with an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
 - The extension, profile, template and footer share one version. While it is 0.x a minor bump is breaking.
-- The version string is hard coded beyond `json-schema/`. A new version also moves the `--schemaMap` URLs in
-  [package.json](package.json), `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in
-  [scripts/check-profile.mjs](scripts/check-profile.mjs), the examples' `stac_extensions` and the footer `version`.
-  `grep -rn v0.1.0 --exclude-dir=node_modules .` lists every URL that names it.
+- A version bump moves all of these together.
+  - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),
+    `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/check-profile.mjs](scripts/check-profile.mjs),
+    the examples' `stac_extensions`, the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
+  - Bare strings. `version` in `package.json`, the PROFILE Version row and "now 0.1.0" under Versioning, the footer
+    `version` in `footers/` and `template_version` in `templates/`. The firmware generator sets `template_version`,
+    so a minor bump needs new firmware templates first.
+  - Patterns. `^0\\.1\\.[0-9]+$` in `json-schema/template.json` and `json-schema/footer.json`, and the PROFILE text
+    "`0.1.` then the patch".
+  - Test cases. In `check-profile.mjs` the broken footer `version 0.2.0` and the accepted patch `0.1.7`.
+    After a minor bump to 0.2 the broken case would pass, so move both.
+  - Search with `grep -rnF 0.1. --exclude-dir=node_modules --exclude=package-lock.json .` for URLs and bare strings,
+    and `grep -rnF '^0' json-schema` for the patterns.
 - Every `$id` keeps the `walkthru-earth.github.io` host even though it redirects to `walkthru.earth`.
 - Release steps are in [README.md](README.md#releasing). Do not tag or publish without the owner.
 
@@ -53,7 +63,7 @@ See [PROFILE.md](PROFILE.md#writers).
 - Every published Thing uses H3 resolution 8, fixed or moving (OD-2026-11-04-B). A publisher never coarsens.
   `anon:size` is `0.01`.
 - H3 C 4.5.0 is the geometry reference, the version the firmware vendors and h3-js 4.5.0 wraps.
-  The mobile app uses `com.uber:h3` 4.5.1 (h3-java) on the JVM.
+  The mobile app uses `com.uber:h3` 4.5.1 (h3-java) on the JVM and Android, and a vendored H3 C 4.5.0 on iOS.
 - Canonical geometry, `bbox` and Collection `extent.spatial` compare within 1e-9 degrees (`TOLERANCE` in `canonical.mjs`).
   Change the builder and the PROFILE Canonical form table together.
 - The window start is floor(first row seconds / `rotation_interval_s`) × `rotation_interval_s`.
@@ -68,13 +78,19 @@ See [PROFILE.md](PROFILE.md#writers).
 
 - Templates are canonical in the firmware repo at `docs/shared/templates/<board>/<dict>.json`, pinned to a full
   40 character commit (OD-2026-11-04-C). The [templates/](templates) folder here holds byte for byte example copies,
-  not a template host. Never hand edit them. Refresh them from a pinned firmware commit and rebuild the examples.
-- The firmware repo vendors `json-schema/`, `PROFILE.md` and `footers/m5stack-cores3.json` under
-  `tools/stac_opensensor/` at `83787768`, and its contract tests validate board templates and footers against them.
+  not a template host. Never hand edit them. A refresh from a newer firmware commit, and the rebuild of the examples
+  it causes, is a contract change that ships as a new version.
+- The copies here are named by `<firmware.dict>`, as in the firmware. A catalog mirror in PROFILE is named by the
+  template SHA-256 instead. `check-profile` enforces the dict name, so never rename these files.
+- The firmware repo vendors the four schemas in `tools/stac_opensensor/v0.1.0/`, and `PROFILE.md` and
+  `footers/m5stack-cores3.json` in `tools/stac_opensensor/`, all at `83787768`. Its contract tests validate board
+  templates and footers against them. A version bump there renames the folder and moves the paths that name it,
+  in `tools/board_template.py`, `tools/footer_contract.py`, `tools/plugin_contract.py` and the `$ref` URLs in
+  `docs/shared/plugins/README.md`.
 - The mobile app copies the schemas, example Items, footers and rows into
-  `core/stac/src/commonTest/fixtures/stac-opensensor` (mobile PR 256), and its tests compare its Item builder with these examples.
+  `core/stac/src/commonTest/fixtures/stac-opensensor`, and its tests compare its Item builder with these examples.
 - So any contract change needs matching firmware and mobile PRs that move their pins to the new release.
-  Record cross repo decisions in [docs/decisions.md](docs/decisions.md), newest at the top of the first table.
+  Record cross repo decisions in [docs/decisions.md](docs/decisions.md), newest at the top of the Owner decisions table.
 
 ## Validate locally
 
@@ -89,14 +105,15 @@ npm test
 
 - `npm run check-markdown` lints every Markdown file with [.github/remark.yaml](.github/remark.yaml),
   including links and a 150 character line limit.
-- `npm run check-examples` validates the examples with stac-node-validator against the local schemas.
-- `npm run check-profile` rebuilds every Item and Collection from `fixtures/`, checks templates, footers, `geo` keys and
-  the Catalog, and must end with `Profile OK` and the count of broken cases rejected.
+- `npm run check-examples` validates the examples with stac-node-validator against the local OpenSensor schemas.
+  It fetches the third party extension schemas, such as Table, CF and Grid, so it needs network.
+- `npm run check-profile` runs fully offline. It rebuilds every Item and Collection from `fixtures/`, checks templates,
+  footers, `geo` keys and the Catalog, and must end with `Profile OK` and the count of broken cases rejected.
 
 Other scripts.
 
 - `npm run format-examples` rewrites the examples in the validator's format. Run it after editing an example and commit the diff.
-- `npm run check-examples-live` validates against the published schemas. It needs network and only proves released versions.
+- `npm run check-examples-live` validates against the published schemas and only proves released versions.
 
 ## Before a PR
 
