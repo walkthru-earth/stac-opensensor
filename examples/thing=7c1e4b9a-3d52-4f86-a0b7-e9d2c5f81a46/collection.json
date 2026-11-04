@@ -57,7 +57,7 @@
     "temporal": {
       "interval": [
         [
-          "2026-10-24T08:15:00Z",
+          "2026-10-24T08:17:20Z",
           null
         ]
       ]
@@ -488,7 +488,6 @@
         {
           "name": "pm25_atmospheric_ug_m3",
           "type": "int32",
-          "title": "PM2.5",
           "unit": "ug/m3",
           "roles": [
             "physicalMeasurement"
@@ -507,12 +506,12 @@
             0,
             1000
           ],
+          "title": "PM2.5",
           "opensensor:scale": "who-2021-pm25"
         },
         {
           "name": "pm10_atmospheric_ug_m3",
           "type": "int32",
-          "title": "PM10",
           "unit": "ug/m3",
           "roles": [
             "physicalMeasurement"
@@ -531,6 +530,7 @@
             0,
             1000
           ],
+          "title": "PM10",
           "opensensor:scale": "who-2021-pm10"
         },
         {

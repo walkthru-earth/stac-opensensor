@@ -1,0 +1,143 @@
+{
+  "title": "Cairo bike sensor",
+  "description": "A moving Thing, Waveshare ESP32-S3-SIM7670G-4G V2.0 with Plantower PMS5003T and Analog Devices MAX17048. Each Item is one Parquet file of 10 second samples.",
+  "providers": [
+    {
+      "name": "Cairo bike sensor owner",
+      "roles": [
+        "producer",
+        "licensor"
+      ]
+    },
+    {
+      "name": "Walkthru.Earth",
+      "roles": [
+        "host"
+      ],
+      "url": "https://walkthru.earth"
+    }
+  ],
+  "prefix": "walkthru-earth/opensensor-space",
+  "columns": {
+    "pm25_atmospheric_ug_m3": {
+      "title": "PM2.5",
+      "opensensor:scale": "who-2021-pm25"
+    },
+    "pm10_atmospheric_ug_m3": {
+      "title": "PM10",
+      "opensensor:scale": "who-2021-pm10"
+    }
+  },
+  "scales": {
+    "who-2021-pm25": {
+      "source": "https://www.who.int/publications/i/item/9789240034228",
+      "unit": "ug/m3",
+      "guideline": 5,
+      "steps": [
+        {
+          "upper": 5,
+          "label": {
+            "en": "Guideline",
+            "ar": "الحد الإرشادي"
+          },
+          "color_hint": "2E7D32"
+        },
+        {
+          "upper": 10,
+          "label": {
+            "en": "Interim target 4",
+            "ar": "الهدف المرحلي 4"
+          },
+          "color_hint": "9E9D24"
+        },
+        {
+          "upper": 15,
+          "label": {
+            "en": "Interim target 3",
+            "ar": "الهدف المرحلي 3"
+          },
+          "color_hint": "F9A825"
+        },
+        {
+          "upper": 25,
+          "label": {
+            "en": "Interim target 2",
+            "ar": "الهدف المرحلي 2"
+          },
+          "color_hint": "EF6C00"
+        },
+        {
+          "upper": 35,
+          "label": {
+            "en": "Interim target 1",
+            "ar": "الهدف المرحلي 1"
+          },
+          "color_hint": "D84315"
+        },
+        {
+          "upper": null,
+          "label": {
+            "en": "Above interim target 1",
+            "ar": "فوق الهدف المرحلي 1"
+          },
+          "color_hint": "C62828"
+        }
+      ]
+    },
+    "who-2021-pm10": {
+      "source": "https://www.who.int/publications/i/item/9789240034228",
+      "unit": "ug/m3",
+      "guideline": 15,
+      "steps": [
+        {
+          "upper": 15,
+          "label": {
+            "en": "Guideline",
+            "ar": "الحد الإرشادي"
+          },
+          "color_hint": "2E7D32"
+        },
+        {
+          "upper": 45,
+          "label": {
+            "en": "Interim target 4",
+            "ar": "الهدف المرحلي 4"
+          },
+          "color_hint": "9E9D24"
+        },
+        {
+          "upper": 50,
+          "label": {
+            "en": "Interim target 3",
+            "ar": "الهدف المرحلي 3"
+          },
+          "color_hint": "F9A825"
+        },
+        {
+          "upper": 75,
+          "label": {
+            "en": "Interim target 2",
+            "ar": "الهدف المرحلي 2"
+          },
+          "color_hint": "EF6C00"
+        },
+        {
+          "upper": 100,
+          "label": {
+            "en": "Interim target 1",
+            "ar": "الهدف المرحلي 1"
+          },
+          "color_hint": "D84315"
+        },
+        {
+          "upper": null,
+          "label": {
+            "en": "Above interim target 1",
+            "ar": "فوق الهدف المرحلي 1"
+          },
+          "color_hint": "C62828"
+        }
+      ]
+    }
+  }
+}
