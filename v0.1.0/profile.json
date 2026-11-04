@@ -168,6 +168,37 @@
           "contains": {
             "$ref": "#/definitions/dictionaryLink"
           }
+        },
+        "extent": {
+          "type": "object",
+          "required": [
+            "temporal"
+          ],
+          "properties": {
+            "temporal": {
+              "type": "object",
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "$comment": "The temporal extent stays open, its end is null while the Thing publishes."
         }
       }
     },
@@ -201,6 +232,11 @@
             {
               "contains": {
                 "const": "https://stac-extensions.github.io/anonymized-location/v1.0.0/schema.json"
+              }
+            },
+            {
+              "contains": {
+                "const": "https://stac-extensions.github.io/file/v2.1.0/schema.json"
               }
             }
           ]
@@ -271,7 +307,9 @@
                 "href",
                 "type",
                 "roles",
-                "table:row_count"
+                "table:row_count",
+                "file:size",
+                "file:checksum"
               ],
               "properties": {
                 "href": {
@@ -287,6 +325,13 @@
                   "contains": {
                     "const": "data"
                   }
+                },
+                "file:size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "file:checksum": {
+                  "$ref": "#/definitions/checksum"
                 }
               }
             }
@@ -520,26 +565,6 @@
         }
       ]
     },
-    "templateLink": {
-      "type": "object",
-      "required": [
-        "rel",
-        "href",
-        "type",
-        "file:checksum"
-      ],
-      "properties": {
-        "rel": {
-          "const": "describedby"
-        },
-        "type": {
-          "const": "application/json"
-        },
-        "file:checksum": {
-          "$ref": "#/definitions/checksum"
-        }
-      }
-    },
     "checksum": {
       "type": "string",
       "pattern": "^1220[0-9a-f]{64}$"
@@ -547,8 +572,9 @@
     "relativeHref": {
       "type": "string",
       "not": {
-        "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*:"
-      }
+        "pattern": "^([a-zA-Z][a-zA-Z0-9+.-]*:|/)"
+      },
+      "$comment": "No scheme and no leading slash, so neither /catalog.json nor //host/catalog.json passes."
     },
     "catalogLink": {
       "$comment": "Links between catalog files are relative, so a copied or mirrored catalog keeps working.",

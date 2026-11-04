@@ -7,8 +7,9 @@
   "required": ["version", "thing", "firmware", "dictionary", "template", "acquisition", "file"],
   "properties": {
     "version": {
-      "description": "Version of this footer contract, the same as the profile version.",
-      "const": "0.1.0"
+      "description": "Version of this footer contract, the same as the profile version. Readers compare major and minor, so any 0.1 patch passes.",
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
     },
     "thing": {
       "type": "object",
@@ -125,10 +126,9 @@
       "required": ["rotation_interval_s", "row_groups", "row_group_rows_max", "compression", "purpose"],
       "properties": {
         "rotation_interval_s": {
-          "description": "Length of the file window in seconds, at most one hour.",
+          "description": "Length of the file window in seconds. It divides 3600, so a window never crosses an hour or a day.",
           "type": "integer",
-          "minimum": 1,
-          "maximum": 3600
+          "enum": [600, 900, 1800, 3600]
         },
         "row_groups": {
           "type": "integer",
