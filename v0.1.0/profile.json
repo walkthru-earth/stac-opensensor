@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json#",
-  "title": "OpenSensor Station Profile",
-  "description": "Rules on top of STAC core and the OpenSensor extension for station Collections and day Items.",
+  "title": "OpenSensor Thing Profile",
+  "description": "Rules on top of STAC core and the OpenSensor extension for Thing Collections and file Items.",
   "type": "object",
   "required": [
     "type"
@@ -23,13 +23,13 @@
     }
   },
   "then": {
-    "$ref": "#/definitions/stationCollection"
+    "$ref": "#/definitions/thingCollection"
   },
   "else": {
-    "$ref": "#/definitions/dayItem"
+    "$ref": "#/definitions/fileItem"
   },
   "definitions": {
-    "stationCollection": {
+    "thingCollection": {
       "type": "object",
       "required": [
         "type",
@@ -38,6 +38,12 @@
         "keywords",
         "instruments",
         "opensensor:sample_interval_s",
+        "opensensor:mobility",
+        "partition:scheme",
+        "partition:strategy",
+        "partition:keys",
+        "partition:glob",
+        "providers",
         "item_assets",
         "links"
       ],
@@ -55,6 +61,9 @@
             },
             {
               "$ref": "#/definitions/hasProfile"
+            },
+            {
+              "$ref": "#/definitions/hasPartition"
             }
           ]
         },
@@ -65,6 +74,80 @@
         "instruments": {
           "type": "array",
           "minItems": 1
+        },
+        "partition:scheme": {
+          "const": "hive"
+        },
+        "partition:strategy": {
+          "const": "temporal"
+        },
+        "partition:keys": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": [
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "year"
+                }
+              }
+            },
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "month"
+                }
+              }
+            },
+            {
+              "$ref": "#/definitions/partitionKey",
+              "properties": {
+                "name": {
+                  "const": "day"
+                }
+              }
+            }
+          ]
+        },
+        "partition:glob": {
+          "type": "string",
+          "pattern": "/thing=[0-9a-f-]{36}/year=\\*/month=\\*/day=\\*/\\*\\.parquet$"
+        },
+        "providers": {
+          "type": "array",
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "roles": {
+                    "contains": {
+                      "const": "producer"
+                    }
+                  }
+                },
+                "required": [
+                  "roles"
+                ]
+              }
+            },
+            {
+              "contains": {
+                "properties": {
+                  "roles": {
+                    "contains": {
+                      "const": "host"
+                    }
+                  }
+                },
+                "required": [
+                  "roles"
+                ]
+              }
+            }
+          ]
         },
         "item_assets": {
           "type": "object",
@@ -79,19 +162,25 @@
         },
         "links": {
           "type": "array",
+          "items": {
+            "$ref": "#/definitions/catalogLink"
+          },
           "contains": {
             "$ref": "#/definitions/dictionaryLink"
           }
         }
       }
     },
-    "dayItem": {
+    "fileItem": {
       "type": "object",
       "required": [
         "type",
         "stac_extensions",
         "collection",
+        "geometry",
+        "bbox",
         "properties",
+        "links",
         "assets"
       ],
       "properties": {
@@ -111,11 +200,6 @@
             },
             {
               "contains": {
-                "const": "https://stac-extensions.github.io/grid/v1.1.0/schema.json"
-              }
-            },
-            {
-              "contains": {
                 "const": "https://stac-extensions.github.io/anonymized-location/v1.0.0/schema.json"
               }
             }
@@ -124,16 +208,54 @@
         "properties": {
           "type": "object",
           "required": [
+            "datetime",
             "start_datetime",
             "end_datetime",
-            "grid:code",
+            "opensensor:mobility",
             "anon:size",
             "anon:warning"
           ],
           "properties": {
+            "datetime": {
+              "type": "null"
+            },
             "grid:code": {
               "type": "string",
-              "pattern": "^H3-[0-9a-f]{15}$"
+              "pattern": "^H3-88[0-9a-f]{13}$",
+              "description": "An H3 cell at resolution 8, the only resolution a published Thing uses."
+            },
+            "anon:size": {
+              "const": 0.01,
+              "description": "Side of one resolution 8 cell in degrees, twice the mean H3 edge length over 111.32 km, rounded up to 3 decimals."
+            }
+          },
+          "if": {
+            "properties": {
+              "opensensor:mobility": {
+                "const": "fixed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "grid:code"
+            ],
+            "properties": {
+              "anon:warning": {
+                "const": "The geometry is the H3 cell chosen by the owner, not the device position."
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "grid:code"
+              ]
+            },
+            "properties": {
+              "anon:warning": {
+                "const": "The geometry is the H3 cells the device visited, not its track."
+              }
             }
           }
         },
@@ -148,12 +270,83 @@
               "required": [
                 "href",
                 "type",
+                "roles",
                 "table:row_count"
               ],
               "properties": {
+                "href": {
+                  "type": "string",
+                  "pattern": "^\\./data_[0-9]{4}_[0-9a-f]{32}_[0-9]+-[0-9]+-[0-9]+\\.parquet$",
+                  "description": "Relative to the Item, the Parquet file next to it."
+                },
                 "type": {
                   "const": "application/vnd.apache.parquet"
+                },
+                "roles": {
+                  "type": "array",
+                  "contains": {
+                    "const": "data"
+                  }
                 }
+              }
+            }
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "Polygon",
+                "MultiPolygon"
+              ]
+            }
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/catalogLink"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "properties": {
+            "properties": {
+              "opensensor:mobility": {
+                "const": "fixed"
+              }
+            },
+            "required": [
+              "opensensor:mobility"
+            ]
+          }
+        },
+        "required": [
+          "properties"
+        ]
+      },
+      "then": {
+        "$comment": "A fixed Thing names its cell with the Grid extension.",
+        "properties": {
+          "stac_extensions": {
+            "contains": {
+              "const": "https://stac-extensions.github.io/grid/v1.1.0/schema.json"
+            }
+          }
+        }
+      },
+      "else": {
+        "$comment": "A moving Thing has no single cell, and the Grid extension requires grid:code, so it is not listed.",
+        "properties": {
+          "stac_extensions": {
+            "not": {
+              "contains": {
+                "const": "https://stac-extensions.github.io/grid/v1.1.0/schema.json"
               }
             }
           }
@@ -175,25 +368,45 @@
         "const": "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json"
       }
     },
+    "hasPartition": {
+      "contains": {
+        "const": "https://schemas.portolan-sdi.org/incubating/partition/v1.0.0/schema.json"
+      }
+    },
+    "partitionKey": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "int32"
+        }
+      }
+    },
     "dictionaryLink": {
       "type": "object",
       "required": [
         "rel",
         "href",
+        "type",
         "file:checksum"
       ],
       "properties": {
         "rel": {
           "const": "describedby"
         },
+        "type": {
+          "const": "text/plain"
+        },
         "file:checksum": {
-          "type": "string",
-          "pattern": "^1220[0-9a-f]{64}$"
+          "$ref": "#/definitions/checksum"
         }
       }
     },
     "dataAsset": {
-      "$comment": "The data asset of a station. Also used by board templates.",
+      "$comment": "The data asset of a Thing. Also used by board templates.",
       "type": "object",
       "required": [
         "type",
@@ -306,6 +519,62 @@
           }
         }
       ]
+    },
+    "templateLink": {
+      "type": "object",
+      "required": [
+        "rel",
+        "href",
+        "type",
+        "file:checksum"
+      ],
+      "properties": {
+        "rel": {
+          "const": "describedby"
+        },
+        "type": {
+          "const": "application/json"
+        },
+        "file:checksum": {
+          "$ref": "#/definitions/checksum"
+        }
+      }
+    },
+    "checksum": {
+      "type": "string",
+      "pattern": "^1220[0-9a-f]{64}$"
+    },
+    "relativeHref": {
+      "type": "string",
+      "not": {
+        "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*:"
+      }
+    },
+    "catalogLink": {
+      "$comment": "Links between catalog files are relative, so a copied or mirrored catalog keeps working.",
+      "if": {
+        "properties": {
+          "rel": {
+            "enum": [
+              "root",
+              "parent",
+              "collection",
+              "child",
+              "item"
+            ]
+          }
+        },
+        "required": [
+          "rel"
+        ]
+      },
+      "then": {
+        "properties": {
+          "href": {
+            "$ref": "#/definitions/relativeHref"
+          }
+        }
+      }
     }
   }
 }
