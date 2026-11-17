@@ -23,6 +23,12 @@
       "title": "Cairo bike sensor"
     },
     {
+      "rel": "child",
+      "href": "./thing=b4d9e2a7-5c31-4f08-9e6a-1a7c3f2d8e54/collection.json",
+      "type": "application/json",
+      "title": "Ridge air and CO2 sensor"
+    },
+    {
       "rel": "license",
       "href": "https://creativecommons.org/licenses/by/4.0/",
       "type": "text/html",
