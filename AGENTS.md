@@ -14,9 +14,10 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [README.md](README.md) | The extension fields, what to reuse instead, tests and release steps |
 | [PROFILE.md](PROFILE.md) | The Thing profile, layout, Writers, Canonical form, footer and board template |
 | [CHANGELOG.md](CHANGELOG.md) | Keep a Changelog, with an `Unreleased` section on top |
-| [json-schema/](json-schema) | `schema.json`, `profile.json`, `template.json` and `footer.json`, published to Pages on release |
-| [examples/](examples) | Root Catalog, one fixed and one moving Thing Collection, one File Item each |
-| [templates/](templates) | Example copies of the two real board templates, `templates/<board>/<firmware.dict>.json` |
+| [json-schema/](json-schema) | `schema.json`, `profile.json`, `template.json`, `footer.json` and `registry.json`, published to Pages on release |
+| [registry/](registry) | Property registry keyed by `opensensor:property` and shared scales, published beside the schemas under `registry/` |
+| [examples/](examples) | Root Catalog, two fixed and one moving Thing Collection, one File Item each |
+| [templates/](templates) | Example copies of the three real board templates, `templates/<board>/<firmware.dict>.json` |
 | [footers/](footers) | The `opensensor` Parquet footer and the GeoParquet `geo` key of each example file |
 | [fixtures/](fixtures) | Rows of each example file and each Thing's `owner.json`, the input of the rebuild |
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
@@ -26,14 +27,18 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 
 ## Frozen release
 
-- OD-2026-11-04-A freezes the published v0.1.0 schema files. This repo extends the freeze to templates, footers,
-  fixtures and examples, because the firmware and the app copy them byte for byte. Never edit any of them in place.
-  A change ships as a new version with an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
+- OD-2026-11-04-A freezes what is published. Files served on Pages for a released tag are never overwritten,
+  and the publish workflow runs only on a GitHub release, so a merge to `main` never touches them.
+- On `main` nothing is frozen. Since 2026-10-26 the owner rule is no back-compat, with firmware and mobile moving in lockstep.
+  Schemas, templates, footers, fixtures and examples MAY change on `main` while their `$id` still names the last release.
+  Every such change gets an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) and ships as the next version,
+  whose release moves every URL listed below. Firmware and the app copy these files byte for byte, so they pin a tag.
 - The extension, profile, template and footer share one version. While it is 0.x a minor bump is breaking.
 - A version bump moves all of these together.
   - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),
     `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/check-profile.mjs](scripts/check-profile.mjs),
-    the examples' `stac_extensions`, the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
+    the examples' `stac_extensions`, the `$schema` of both files in `registry/`,
+    the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
   - Bare strings. `version` in `package.json`, the PROFILE Version row and "now 0.1.0" under Versioning, the footer
     `version` in `footers/` and `template_version` in `templates/`. The firmware generator sets `template_version`,
     so a minor bump needs new firmware templates first.
@@ -73,6 +78,10 @@ See [PROFILE.md](PROFILE.md#writers).
 - A fixed Item lists Grid and sets `grid:code`. A moving Item leaves Grid out and its geometry is the union of its cells.
 - Template bytes are minified with no final newline and are never reformatted, so their SHA-256 stays stable.
   `npm run format-examples` touches only STAC documents, never `templates/`.
+- Every template column's `opensensor:property` must be in [registry/properties.json](registry/properties.json) with the same unit.
+  A new quantity adds its registry entry in the same change. A registry scale id carries the same scale everywhere.
+- Display hints (`title`, `description`, the `_i18n` maps, `opensensor:decimals`, `opensensor:group`, `opensensor:scale`)
+  are the only column keys a Collection may add or change over its template. A user's own overrides stay in the app.
 
 ## Templates and downstream repos
 

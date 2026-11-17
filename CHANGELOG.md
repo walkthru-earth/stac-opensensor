@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Breaking, ships as v0.2.0 together with regenerated firmware templates.
+
+### Added
+
+- Display hints on columns. Core `title` and `description`, `opensensor:title_i18n` and `opensensor:description_i18n` maps,
+  `opensensor:decimals` and `opensensor:group`, in templates and Collections
+- `opensensor:primary` names the main metric column of a template or Collection, and a template MAY carry `opensensor:scales`
+- Property registry `registry/properties.json`, keyed by `opensensor:property` URI, with labels, definitions, group,
+  default decimals and default scale for every property the bundled templates use
+- Scale registry `registry/scales.json` with the WHO 2021 PM2.5 and PM10 scales, and `json-schema/registry.json` for both registries
+- `classification:bitfields` on `{bitmask}` columns, with the SEN6x device status bits as the worked example
+- ELECROW CrowPanel e-paper template `crowpanel-epaper-telemetry-v1` with a SEN63C, and a fixed CrowPanel example Thing
+  whose owner config sets display hints
+- `check-profile` checks every template column against the registry, registry scales against their copies, and the new hints
+
+### Changed
+
+- Display hints are published. The rule that the app profile never goes into published STAC is gone.
+  A user's own overrides still stay in the app
+- A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
+- A Scale object requires `period`, the ISO 8601 averaging period its bounds apply to
+- The publish workflow also serves `registry/` beside the schemas
+
+### Fixed
+
+- The WHO scales mixed averaging periods. Both are now the WHO 2021 24-hour guideline and interim targets the app uses,
+  PM2.5 15, 25, 37.5, 50 and 75 ug/m3 and PM10 45, 50, 75, 100 and 150 ug/m3, with the app's step colours
+
 ## [v0.1.0] - 2026-11-04
 
 The first public release. A pre-release tag named v0.1.0 was cut on 2026-10-25 for the Station draft.

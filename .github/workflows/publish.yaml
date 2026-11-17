@@ -16,6 +16,8 @@ jobs:
         run: |
           npm ci
           npm test
+      - name: Serve the registries beside the schemas
+        run: cp -R registry json-schema/registry
       - name: deploy JSON Schema for version ${{ env.GITHUB_REF_SLUG }}
         uses: peaceiris/actions-gh-pages@v4.1.0
         with:
