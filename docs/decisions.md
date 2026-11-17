@@ -1,11 +1,12 @@
 # Decisions
 
 This file is the decision register for the OpenSensor spec.
-It lists what was decided, what was replaced and what is still open, as of 2026-11-04.
+It lists what was decided, what was replaced and what is still open, as of 2026-11-17.
 New decisions go at the top of the first table.
 
 Three sources feed it.
 
+- The owner decisions of 2026-11-17, id `OD-2026-11-17-1`.
 - The owner decisions of 2026-11-04, ids `OD-2026-11-04-A` to `D`.
 - The ecosystem bridge, the cross repo log kept by the coordinators in `.handoff/ecosystem-bridge.md`.
   The copy used here is the version of 2026-10-27 04:48 UTC.
@@ -23,6 +24,12 @@ Status words mean the following.
 | superseded | Replaced by the row named in the note. |
 | closed | A question that has its answer. |
 | open | Still needs an owner answer. Listed again under [Open questions](#open-questions). |
+
+## Owner decisions of 2026-11-17
+
+| Id | Decision | Status |
+| --- | --- | --- |
+| OD-2026-11-17-1 | Display hints go into published metadata. A template and a Collection MAY carry column `title`, `description`, their `_i18n` maps, `opensensor:decimals`, `opensensor:group` and `opensensor:scale`, and a main metric `opensensor:primary`. A property registry keyed by `opensensor:property` URI gives labels, definitions, groups, decimals and default scales. Clients fall back to the registry, then to the column name. A user's own overrides stay in the app. This replaces the rule that the app profile never goes into published STAC. Mobile epic [opensensor-space-mobile#219](https://github.com/walkthru-earth/opensensor-space-mobile/issues/219). See [Display hints](../PROFILE.md#display-hints). | decided, ships as v0.2.0 |
 
 ## Owner decisions of 2026-11-04
 
@@ -142,7 +149,9 @@ These rows were rebuilt from issues and decision records, not from the bridge. T
 | Derived aggregates and Discover products, their ids, layout and STAC | stac issue #2, DR0002 | owner, then spec |
 | Aggregate enum gains counter `delta` and circular mean | Q17 | spec |
 | Recheck the `geo` version string when GeoParquet 2.0.0 is final | D32 | spec |
-| Who hosts the `urn:walkthru-earth:property:` vocabulary and where it resolves | D8, D10 | owner |
+| Where `urn:walkthru-earth:property:` URIs resolve. Labels and definitions now live in [registry/properties.json](../registry/properties.json) | D8, D10, OD-2026-11-17-1 | owner |
+| A CO2 scale and its source. The registry gives CO2 no scale until one is chosen | OD-2026-11-17-1 | owner |
+| The CrowPanel screen colours PM2.5 with US EPA AQI bands, while the spec and the app use WHO 2021 | OD-2026-11-17-1 | owner |
 | Footer keys with no slot | Q28 | spec |
 | Footer shape for derived day files | Q29 | spec |
 | Footer for rebuilt partial files | Q30 | firmware, then spec |

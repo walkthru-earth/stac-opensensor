@@ -28,11 +28,14 @@ It only defines what STAC core and existing extensions do not already cover, see
     is one Waveshare Thing on a bike
   - [Moving File Item](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-487-0.json)
     is located by the union of the H3 cells it visited
+  - [CrowPanel Thing Collection](examples/thing=b4d9e2a7-5c31-4f08-9e6a-1a7c3f2d8e54/collection.json)
+    is one CrowPanel e-paper Thing with a SEN63C, whose owner sets display hints and a main metric
   - [Board templates](templates) are what a firmware build knows about its columns, copied byte for byte
   - [Footers](footers) are the `opensensor` Parquet footer and the GeoParquet `geo` key of each example file
   - [Fixtures](fixtures) are the rows of each example file and each Thing's owner config, from which `npm run check-profile` rebuilds the examples
-- [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json)
-  and [footer](json-schema/footer.json) schemas
+- [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json),
+  [footer](json-schema/footer.json) and [registry](json-schema/registry.json) schemas
+- [Property registry](registry/properties.json) and [scale registry](registry/scales.json), see [Property registry](#property-registry)
 - [Decision register](docs/decisions.md) lists what was decided and what is still open
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
 - [Changelog](./CHANGELOG.md)
@@ -65,6 +68,10 @@ Used inside entries of `table:columns`.
 | opensensor:plausible_range | \[number, number]                 | Plausible minimum and maximum, see [opensensor:plausible_range](#opensensorplausible_range) |
 | opensensor:scale           | string                            | Id of a scale in `opensensor:scales` |
 | opensensor:derived         | [Derived Object](#derived-object) | Marks a column computed from other columns |
+| opensensor:title_i18n      | Map\<string, string>              | Column label in other languages, keyed by language code, see [Display hints](#display-hints) |
+| opensensor:description_i18n | Map\<string, string>             | Column description in other languages, keyed by language code |
+| opensensor:decimals        | integer                           | Digits after the point when a value is shown, 0 to 9 |
+| opensensor:group           | string                            | Kind of quantity, see [opensensor:group](#opensensorgroup) |
 
 ### Collection and Item fields
 
@@ -75,6 +82,7 @@ Used at the top of a Collection and in Item Properties.
 | opensensor:scales            | Map\<string, [Scale Object](#scale-object)> | Health or comfort scales, keyed by scale id |
 | opensensor:sample_interval_s | number                                      | Seconds between samples |
 | opensensor:mobility          | string                                      | `fixed` when the Thing stays in one place, `moving` when it changes place |
+| opensensor:primary           | string                                      | Name of the column a client shows first, Collection only |
 
 ### Additional Field Information
 
@@ -83,6 +91,11 @@ Used at the top of a Collection and in Item Properties.
 Values are the CF `cell_methods` words `mean`, `minimum`, `maximum`, `sum`, `point` and `mode`.
 Use `point` for an instantaneous reading and `mode` for coded columns.
 This says how to roll values up. CF `cell_methods` says how stored values were made, which is a different question.
+
+#### opensensor:group
+
+One of `particulate`, `gas`, `climate`, `light`, `motion`, `location`, `power`, `time` and `device`.
+A client uses it to place a column it does not know next to its kin.
 
 #### opensensor:plausible_range
 
@@ -127,6 +140,46 @@ Either form is allowed.
 | from       | \[string]    | **REQUIRED**. Input column names |
 | method     | string (URI) | **REQUIRED**. URI of the method, for example the paper that defines a correction |
 
+## Display hints
+
+A column MAY also carry core `title` and `description`, plain strings in the default language.
+Other languages go in `opensensor:title_i18n` and `opensensor:description_i18n`, maps from a BCP 47 language code to text,
+the same shape as a Step `label`. The core fields stay plain strings so every STAC tool shows them,
+and STAC has no inline translation field of its own.
+`opensensor:decimals`, `opensensor:group`, `opensensor:scale` and the Collection `opensensor:primary` complete the hints.
+Hints only change how a value is shown, never what it means. A board template MAY carry them and a Thing's owner MAY override them.
+A user's own choices, such as card order or a renamed card, stay in the client.
+The [Thing profile](PROFILE.md#display-hints) fixes where hints come from and how they merge.
+
+### Property registry
+
+The [property registry](registry/properties.json) is a machine readable vocabulary keyed by `opensensor:property` URI,
+in the spirit of STAC Browser's [stac-fields](https://github.com/stac-utils/stac-fields).
+Each entry holds an English `label`, `short_label` and `definition`, with Arabic only where the term is checked,
+plus an optional `symbol`, the `group`, the UCUM `unit`, default `decimals` and a default `scale`.
+A `scale` of `null` means no scale on purpose, such as for PM4 or CO2.
+Shared scales, today the WHO 2021 PM2.5 and PM10 scales, live in the [scale registry](registry/scales.json).
+Both validate against the [registry schema](json-schema/registry.json) and are published beside the schemas on release.
+
+### Rendering an unknown sensor
+
+A generic client that meets a column it has never seen needs no code for that sensor.
+
+1. Label. The column `opensensor:title_i18n` for the reader's language, else the column `title`,
+   else the registry `label` for the column's `opensensor:property`, else the column `name` with `_` read as spaces.
+2. Unit and rounding. Core `unit` as UCUM, then `opensensor:decimals`, else the registry `decimals`, else 0 for integers and 2 otherwise.
+3. Colour. The column `opensensor:scale`, else the registry `scale`, else no scale.
+4. Order. The Collection `opensensor:primary` first, then columns grouped by `opensensor:group` or the registry `group`.
+5. Validity. `opensensor:valid_when`, `opensensor:settle_s` and `opensensor:plausible_range` decide which values count and which look suspect.
+
+A Thing with no title shows the Collection `title`, else the template `title`, else the board slug.
+
+### Later target
+
+[Portolan](https://github.com/portolan-sdi) catalogs are a later target.
+They ask for `description` on every `table:columns` entry, `providers`, and presentation shipped as a `style` asset.
+The display hints and the registry are the first step, and a style asset would be generated from them.
+
 ## What to reuse
 
 Use these instead of new fields.
@@ -136,6 +189,7 @@ Use these instead of new fields.
 | Unit | Core `unit` with a UCUM code, such as `ug/m3` or `Cel` |
 | Column kind | Core `roles` with ACDD `coverage_content_type` values, such as `physicalMeasurement`, `auxiliaryInformation` or `qualityInformation` |
 | Code meanings of a status column | `classification:classes` from [Classification](https://github.com/stac-extensions/classification) v2.0.0 |
+| Bit meanings of a bitmask column | `classification:bitfields` from the same Classification extension |
 | CF name | `cf:standard_name` from [CF](https://github.com/stac-extensions/cf) v1.0.0 |
 | Sensor models | Core `instruments` on the Collection |
 | Real minimum, maximum and mean | Core `statistics` on the Item column |
@@ -148,7 +202,7 @@ Use these instead of new fields.
 | All Items of a Thing in one file | A [stac-geoparquet](https://radiantearth.github.io/stac-geoparquet-spec/latest/) item mirror |
 | Search terms | Core `keywords` |
 
-Device wire details such as live JSON keys and protocol versions, and app choices such as which column shows first, are not part of this extension.
+Device wire details such as live JSON keys and protocol versions are not part of this extension.
 Wire details live in the [board template](PROFILE.md#board-template).
 
 Some reused fields sit in table columns where their own extensions do not list them yet.
