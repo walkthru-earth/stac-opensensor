@@ -15,7 +15,8 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [PROFILE.md](PROFILE.md) | The Thing profile, layout, Writers, Canonical form, footer and board template |
 | [CHANGELOG.md](CHANGELOG.md) | Keep a Changelog, with an `Unreleased` section on top |
 | [json-schema/](json-schema) | `schema.json`, `profile.json`, `template.json`, `footer.json` and `registry.json`, published to Pages on release |
-| [registry/](registry) | Property registry keyed by `opensensor:property` and shared scales, published beside the schemas under `registry/` |
+| [registry/](registry) | Property registry keyed by `opensensor:property`, shared scales and the board slug registry, published beside the schemas under `registry/` |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Step by step guide for adding a board or a sensor |
 | [examples/](examples) | Root Catalog, two fixed and one moving Thing Collection, one File Item each |
 | [templates/](templates) | Example copies of the three real board templates, `templates/<board>/<firmware.dict>.json` |
 | [footers/](footers) | The `opensensor` Parquet footer and the GeoParquet `geo` key of each example file |
@@ -38,7 +39,7 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 - A version bump moves all of these together.
   - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),
     `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/check-profile.mjs](scripts/check-profile.mjs),
-    the examples' `stac_extensions`, the `$schema` of both files in `registry/`,
+    the examples' `stac_extensions`, the `$schema` of every file in `registry/`,
     the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
   - Bare strings. `version` in `package.json`, the PROFILE Version row and "now 0.1.0" under Versioning, the footer
     `version` in `footers/` and `template_version` in `templates/`. The firmware generator sets `template_version`,

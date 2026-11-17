@@ -20,7 +20,7 @@ STAC validators then check the profile like any other extension.
 - [Profile schema](json-schema/profile.json)
 - [Template schema](json-schema/template.json)
 - [Footer schema](json-schema/footer.json)
-- [Registry schema](json-schema/registry.json), [property registry](registry/properties.json) and [scale registry](registry/scales.json)
+- [Registry schema](json-schema/registry.json), [property registry](registry/properties.json), [scale registry](registry/scales.json) and [board registry](registry/boards.json)
 - [Decision register](docs/decisions.md)
 
 ## Versioning
@@ -74,7 +74,8 @@ templates/<board>/<template sha256>.json              optional template mirror
 `HHMM` is the UTC start of the rotation window that holds the first row, and `<boot>` is the 32 hex boot id from the footer.
 The window start is floor(first row seconds ÷ `rotation_interval_s`) × `rotation_interval_s`, as the firmware logger computes it.
 A board that boots at 13:07 with a 900 s window writes `data_1300_…` whose first row is 13:07.
-`<board>` is the board slug, such as `m5stack-cores3`.
+`<board>` is the board slug, such as `m5stack-cores3`. Every slug is listed in [registry/boards.json](registry/boards.json),
+and [CONTRIBUTING.md](CONTRIBUTING.md#1-claim-a-board-slug) says how a new board claims one.
 `<dict>` is the 64 hex digest of the firmware dictionary. The footer holds it as `dictionary.sha256` and the template as `firmware.dict`.
 A template is keyed by `<dict>` because one schema can ship with several dictionaries.
 

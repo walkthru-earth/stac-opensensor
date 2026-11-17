@@ -36,6 +36,7 @@ It only defines what STAC core and existing extensions do not already cover, see
 - [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json),
   [footer](json-schema/footer.json) and [registry](json-schema/registry.json) schemas
 - [Property registry](registry/properties.json) and [scale registry](registry/scales.json), see [Property registry](#property-registry)
+- [Board registry](registry/boards.json) lists every board slug, see [CONTRIBUTING.md](CONTRIBUTING.md)
 - [Decision register](docs/decisions.md) lists what was decided and what is still open
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
 - [Changelog](./CHANGELOG.md)
@@ -217,6 +218,9 @@ Proposals to fix that upstream are
 [cf#11](https://github.com/stac-extensions/cf/issues/11).
 
 ## Contributing
+
+To add a board or a sensor, follow [CONTRIBUTING.md](CONTRIBUTING.md). It covers the board slug, the template,
+the property registry, scales, the setup manifest and the checks.
 
 All contributions are subject to the
 [STAC Specification Code of Conduct](https://github.com/radiantearth/stac-spec/blob/master/CODE_OF_CONDUCT.md).
