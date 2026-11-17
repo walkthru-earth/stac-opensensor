@@ -159,7 +159,7 @@ Each entry holds an English `label`, `short_label` and `definition`, with Arabic
 plus an optional `symbol`, the `group`, the UCUM `unit`, default `decimals` and a default `scale`.
 A `scale` of `null` means no scale on purpose. WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected factory values,
 the PM2.5 batch candidate is a correction under review, and CO2 waits for the owner to choose a scale and its source.
-Shared scales, today the WHO 2021 PM2.5 and PM10 scales, live in the [scale registry](registry/scales.json).
+Shared scales, today the WHO 2021 annual mean scales for PM2.5 and PM10, live in the [scale registry](registry/scales.json).
 Both validate against the [registry schema](json-schema/registry.json) and are published beside the schemas on release.
 
 ### Rendering an unknown sensor
@@ -171,7 +171,8 @@ A generic client that meets a column it has never seen needs no code for that se
 2. Unit and rounding. Core `unit` as UCUM, then `opensensor:decimals`, else the registry `decimals`, else 0 for integers and 2 otherwise.
 3. Colour. The column `opensensor:scale`, else the registry `scale`, else no scale.
 4. Order. The Collection `opensensor:primary` first, then columns grouped by `opensensor:group` or the registry `group`.
-5. Validity. `opensensor:valid_when`, `opensensor:settle_s` and `opensensor:plausible_range` decide which values count and which look suspect.
+5. Validity. `opensensor:valid_when` decides which values count. `opensensor:settle_s` describes warm-up and removes no row.
+   `opensensor:plausible_range` flags suspect values without marking them missing.
 
 A language missing from a map falls back to the plain `title`, then to the registry English `label`.
 A Thing with no title shows the Collection `title`, else the template `title`, else the board slug.

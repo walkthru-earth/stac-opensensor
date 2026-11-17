@@ -255,7 +255,7 @@ A template MAY carry them, as the firmware build knows them, and the owner confi
 | `description` | Column | Default longer text, plain text |
 | `opensensor:title_i18n` | Column | Language code to label, for every other language |
 | `opensensor:description_i18n` | Column | Language code to description, for every other language |
-| `opensensor:decimals` | Column | Digits after the point when a value is shown, 0 to 9. Statistics stay unrounded |
+| `opensensor:decimals` | Column | Digits after the point when a value is shown, 0 to 9. Display only, the [Canonical form](#canonical-form) rounding of statistics does not change |
 | `opensensor:group` | Column | One of the groups below |
 | `opensensor:scale` | Column | Id of the health scale in `opensensor:scales` |
 | `opensensor:primary` | Template or Collection | Name of the column a client shows first, such as `pm25_mass_ug_m3` |
@@ -421,7 +421,7 @@ These choices hold for every Thing.
 | Column ids | `opensensor:field_id` is the 1-based FIELD order, append only. The Thing release is a fresh baseline, every board renumbered its ids once there, and the append only rule holds from that baseline on |
 | Time | `event_time_utc_us`, int64 microseconds since the Unix epoch, as `table:primary_datetime` |
 | Location | H3 cell per row, resolution 8 for fixed and moving Things alike, see [Location](#location) |
-| Health scales | WHO 2021 guideline and interim targets for PM2.5 and PM10 in [registry/scales.json](registry/scales.json), labels in English and Arabic, `color_hint` per step. PM1, PM4 and CO2 have none yet |
+| Health scales | WHO 2021 annual mean guideline and interim targets for PM2.5 and PM10 in [registry/scales.json](registry/scales.json), labels in English and Arabic, `color_hint` per step. PM1, PM4 and CO2 have none yet |
 | Checksums | SHA-256 multihash in `file:checksum`, the `1220` prefix then 64 hex characters |
 | License | CC BY 4.0 |
 | Firmware facts | LIVE keys, protocol floor and unit labels stay in the template under `firmware` |

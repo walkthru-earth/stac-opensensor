@@ -29,6 +29,11 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
 - The publish workflow also serves `registry/` beside the schemas
 
+### Fixed
+
+- The `who-2021-pm10` scale mixed averaging periods, an annual guideline of 15 with 24 hour interim targets.
+  Its interim targets are now the WHO 2021 annual means 20, 30, 50 and 70 ug/m3, matching the annual PM2.5 scale
+
 ## [v0.1.0] - 2026-11-04
 
 The first public release. A pre-release tag named v0.1.0 was cut on 2026-10-25 for the Station draft.

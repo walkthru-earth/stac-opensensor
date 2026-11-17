@@ -156,7 +156,7 @@
           "color_hint": "2E7D32"
         },
         {
-          "upper": 45,
+          "upper": 20,
           "label": {
             "en": "Interim target 4",
             "ar": "الهدف المرحلي 4"
@@ -164,7 +164,7 @@
           "color_hint": "9E9D24"
         },
         {
-          "upper": 50,
+          "upper": 30,
           "label": {
             "en": "Interim target 3",
             "ar": "الهدف المرحلي 3"
@@ -172,7 +172,7 @@
           "color_hint": "F9A825"
         },
         {
-          "upper": 75,
+          "upper": 50,
           "label": {
             "en": "Interim target 2",
             "ar": "الهدف المرحلي 2"
@@ -180,7 +180,7 @@
           "color_hint": "EF6C00"
         },
         {
-          "upper": 100,
+          "upper": 70,
           "label": {
             "en": "Interim target 1",
             "ar": "الهدف المرحلي 1"
