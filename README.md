@@ -250,6 +250,21 @@ After a release, `npm run check-examples-live` validates the examples against th
 Both need network, so `npm test` leaves them out.
 To format the examples, run `npm run format-examples`.
 
+### Validating your own files
+
+`npm run validate` checks files from outside this repository, one at a time, with the same rules as `npm test`.
+It knows templates, footers, GeoParquet `geo` keys, Collections, Items, Catalogs and the registries by their content.
+
+```bash
+npm run validate -- --sha256 <template sha256> path/to/template.json
+npm run validate -- --json path/to/collection.json path/to/item.json
+```
+
+`--sha256` compares a template's bytes with the digest the device or the footer names. `--json` prints a report for CI.
+The exit code is 0 when every file passes and 1 when one fails.
+Checks that join documents, such as an Item against its Collection, and STAC core validation stay in `npm test`
+and `stac-node-validator`.
+
 ## Releasing
 
 The extension, profile, template and footer schemas share one version, see [Versioning](PROFILE.md#versioning).

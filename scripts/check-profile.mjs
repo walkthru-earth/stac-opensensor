@@ -10,34 +10,24 @@
 //    resolution 8 H3 cells, and equals the canonical Item rebuilt from its rows in fixtures/.
 // 5. Footers and their GeoParquet geo keys validate and agree with their template, Collection and rows.
 // 6. Every board slug in templates/, footers/ and examples/ is in registry/boards.json.
-// 7. Broken documents must fail, so the checks above cannot pass by accident.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+// 7. scripts/validate.mjs passes every document of this repository on its own.
+// 8. Broken documents must fail, so the checks above cannot pass by accident.
+import { readdirSync, existsSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import { polygonToCells, cellsToMultiPolygon, cellToLatLng, getResolution, isValidCell } from 'h3-js';
 import {
-  RESOLUTION, TOLERANCE, EXT, bboxOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
+  polygonToCells, cellsToMultiPolygon, cellToLatLng, cellToParent, cellToCenterChild, getResolution, isValidCell,
+} from 'h3-js';
+import {
+  RESOLUTION, TOLERANCE, EXT, bboxOf, geometryOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
 } from './canonical.mjs';
+import * as shared from './checks.mjs';
 
-const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
-const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
+const { read, sha256, schemaErrors, checkRegistry, columnErrors, columnsOf } = shared;
+const {
+  profile, footer: footerSchema, registry: registrySchema, boardRegistry: boardRegistrySchema,
+} = shared.schemas;
 const isRelative = (href) => !/^([a-zA-Z][a-zA-Z0-9+.-]*:|\/)/.test(href);
 const hasScheme = (href) => /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href);
-
-const ajv = new Ajv({ allErrors: true, strict: false });
-addFormats(ajv);
-for (const name of ['schema', 'profile', 'template', 'footer', 'registry']) {
-  ajv.addSchema(read(`json-schema/${name}.json`));
-}
-const base = 'https://walkthru-earth.github.io/stac-opensensor/v0.1.0/';
-const profile = ajv.getSchema(`${base}profile.json`);
-const templateSchema = ajv.getSchema(`${base}template.json`);
-const footerSchema = ajv.getSchema(`${base}footer.json`);
-const registrySchema = ajv.getSchema(`${base}registry.json`);
-const boardRegistrySchema = ajv.getSchema(`${base}registry.json#/definitions/boardRegistry`);
-const schemaErrors = (validate, doc) => (validate(doc) ? [] : [ajv.errorsText(validate.errors)]);
 
 let failures = 0;
 const report = (file, errors) => {
@@ -47,89 +37,18 @@ const report = (file, errors) => {
   }
 };
 const warn = (file, message) => console.warn(`warning ${file}: ${message}`);
-const same = (a, b) => differences(a, b).length === 0;
 
 // 0. Registries
 const registry = read('registry/properties.json');
 const scaleRegistry = read('registry/scales.json');
-const checkRegistry = (properties, scales) => {
-  const errors = [...schemaErrors(registrySchema, properties), ...schemaErrors(registrySchema, scales)];
-  for (const [uri, entry] of Object.entries(properties.properties ?? {})) {
-    if (typeof entry.scale === 'string' && !scales.scales?.[entry.scale]) {
-      errors.push(`${uri} points at scale ${entry.scale}, which registry/scales.json does not have`);
-    }
-  }
-  return errors;
-};
 report('registry/', checkRegistry(registry, scaleRegistry));
 
-// A scale id names one scale everywhere. A document that reuses a registry id must carry the same scale.
-const scaleErrors = (scales) => Object.entries(scales ?? {})
-  .filter(([id, scale]) => scaleRegistry.scales[id] && !same(scale, scaleRegistry.scales[id]))
-  .map(([id]) => `scale ${id} differs from registry/scales.json`);
-
-// Display hints in the template or the Collection. primary and scale must name what the document holds.
-const hintErrors = (doc) => {
-  const errors = [];
-  const columns = doc.item_assets?.data?.['table:columns'] ?? [];
-  const primary = doc['opensensor:primary'];
-  if (primary !== undefined && !columns.some((c) => c.name === primary)) {
-    errors.push(`opensensor:primary ${primary} is not a column`);
-  }
-  for (const column of columns) {
-    const scale = column['opensensor:scale'];
-    if (scale !== undefined && !doc['opensensor:scales']?.[scale]) {
-      errors.push(`column ${column.name} points at missing scale ${scale}`);
-    }
-    if ('classification:bitfields' in column && column.unit !== '{bitmask}') {
-      errors.push(`column ${column.name} has classification:bitfields but its unit is not {bitmask}`);
-    }
-  }
-  return [...errors, ...scaleErrors(doc['opensensor:scales'])];
-};
-
-// Every column property is in the registry, with the same unit.
-const registryErrors = (doc) => {
-  const errors = [];
-  for (const column of doc.item_assets?.data?.['table:columns'] ?? []) {
-    const entry = registry.properties[column['opensensor:property']];
-    if (!entry) {
-      errors.push(`column ${column.name} property ${column['opensensor:property']} is not in registry/properties.json`);
-    } else if (entry.unit !== column.unit) {
-      errors.push(`column ${column.name} unit ${column.unit} differs from the registry unit ${entry.unit}`);
-    }
-  }
-  return errors;
-};
-
-// The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
-// Shapes the schema rejects are skipped here, so their schema errors still reach the report.
-const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const manifestErrors = (firmware) => {
-  const errors = [];
-  const keys = isObject(firmware?.config_keys) ? firmware.config_keys : {};
-  for (const list of ['setup', 'settings']) {
-    const ids = new Set();
-    for (const step of Array.isArray(firmware?.[list]) ? firmware[list] : []) {
-      if (!isObject(step)) continue;
-      if (ids.has(step.id)) errors.push(`firmware.${list} lists ${step.id} twice`);
-      ids.add(step.id);
-      for (const key of Array.isArray(step.keys) ? step.keys : []) {
-        if (!isObject(keys[key])) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
-      }
-    }
-  }
-  for (const [key, spec] of Object.entries(keys)) {
-    if (!isObject(spec) || !isObject(spec.values)) continue;
-    const { min, max } = spec.values;
-    if (min > max) errors.push(`firmware.config_keys ${key} range runs from ${min} down to ${max}`);
-  }
-  return errors;
-};
+// The single document checks live in checks.mjs, shared with scripts/validate.mjs.
+const hintErrors = (doc) => shared.hintErrors(doc, scaleRegistry);
+const registryErrors = (doc) => shared.registryErrors(doc, registry);
 
 // 1. Templates
-const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc),
-  ...manifestErrors(doc.firmware)];
+const checkTemplate = (doc) => shared.checkTemplate(doc, { registry, scaleRegistry });
 const templates = new Map();
 // Every template file with its folder, kept apart from the digest-keyed map, so identical copies all count.
 const templateFolders = [];
@@ -137,10 +56,6 @@ for (const name of readdirSync('templates', { recursive: true }).filter((n) => n
   const file = `templates/${name}`;
   const doc = read(file);
   const errors = checkTemplate(doc);
-  const dictLink = doc.links?.find((l) => l.rel === 'describedby');
-  if (dictLink?.['file:checksum'] !== `1220${doc.firmware?.dict}`) {
-    errors.push('describedby file:checksum does not match firmware.dict');
-  }
   if (!/^[a-z0-9-]+\/[0-9a-f]{64}\.json$/.test(name) || !name.endsWith(`/${doc.firmware?.dict}.json`)) {
     errors.push('path is not templates/<board>/<firmware.dict>.json');
   }
@@ -150,18 +65,12 @@ for (const name of readdirSync('templates', { recursive: true }).filter((n) => n
 }
 
 // Shared helpers
-const columnsOf = (doc) => doc.item_assets?.data?.['table:columns'] ?? [];
 // The display hints a Collection may change. Every other column member is the template's.
 const HINTS = ['title', 'description', 'opensensor:title_i18n', 'opensensor:description_i18n', 'opensensor:decimals',
   'opensensor:group', 'opensensor:scale'];
 const publicColumn = (column) => JSON.stringify(Object.fromEntries(Object.entries(column)
   .filter(([key]) => !HINTS.includes(key))));
 const describedby = (doc, type) => (doc.links ?? []).filter((l) => l.rel === 'describedby' && l.type === type);
-const ringsOf = (geometry) => {
-  if (geometry?.type === 'Polygon') return [geometry.coordinates];
-  if (geometry?.type === 'MultiPolygon') return geometry.coordinates;
-  return [];
-};
 const close = (a, b) => differences(a, b, '', true).length === 0;
 const checkLinks = (file, doc) => {
   const errors = [];
@@ -212,32 +121,7 @@ const checkCollection = (file, doc) => {
       errors.push(`${key} differs from ${entry.file}`);
     }
   }
-  const names = new Set(columns.map((c) => c.name));
-  const data = doc.item_assets?.data ?? {};
-  for (const key of ['table:primary_datetime', 'table:primary_geometry']) {
-    if (key in data && !names.has(data[key])) {
-      errors.push(`${key} ${data[key]} is not a column`);
-    }
-  }
-  const ids = new Set();
-  for (const column of columns) {
-    const id = column['opensensor:field_id'];
-    if (id !== undefined) {
-      if (!Number.isInteger(id) || id < 1 || ids.has(id)) {
-        errors.push(`column ${column.name} has a repeated or invalid field_id ${id}`);
-      }
-      ids.add(id);
-    }
-    const gate = column['opensensor:valid_when']?.column;
-    if (gate !== undefined && !names.has(gate)) {
-      errors.push(`column ${column.name} valid_when names missing column ${gate}`);
-    }
-    for (const from of column['opensensor:derived']?.from ?? []) {
-      if (!names.has(from)) {
-        errors.push(`column ${column.name} derived.from names missing column ${from}`);
-      }
-    }
-  }
+  errors.push(...columnErrors(doc));
   return errors;
 };
 
@@ -262,14 +146,7 @@ const rebuildCollection = (doc, items) => {
 
 // 4. Items
 const checkItem = (file, doc, collection, footer) => {
-  const errors = [...schemaErrors(profile, doc), ...checkLinks(file, doc)];
-  const stem = basename(file, '.json');
-  if (doc.id !== stem) {
-    errors.push(`id ${doc.id} is not the file name ${stem}`);
-  }
-  if (doc.assets?.data?.href !== `./${doc.id}.parquet`) {
-    errors.push(`data href is not ./${doc.id}.parquet`);
-  }
+  const errors = [...shared.itemErrors(file, doc), ...checkLinks(file, doc)];
   if (!collection || collection.id !== doc.collection) {
     errors.push('collection link does not reach the Collection named by collection');
     return errors;
@@ -292,30 +169,10 @@ const checkItem = (file, doc, collection, footer) => {
   if (!doc.id.startsWith(`data_${hhmmOf(window)}_`)) {
     errors.push(`HHMM in the file name is not ${hhmmOf(window)}, the start of the rotation window of start_datetime`);
   }
-  if (new Date(props.end_datetime) < start) {
-    errors.push('end_datetime is before start_datetime');
-  }
   if (props['opensensor:sample_interval_s'] * 1000 !== footer.acquisition?.sample_interval_ms) {
     errors.push('opensensor:sample_interval_s is not the footer sample_interval_ms over 1000');
   }
 
-  // The geometry is cellsToMultiPolygon of the distinct cells in ascending order, so every writer gets the same JSON.
-  const cells = [...new Set(ringsOf(doc.geometry).flatMap((polygon) => polygonToCells(polygon, RESOLUTION, true)))].sort();
-  if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), ringsOf(doc.geometry))) {
-    errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
-  }
-  const code = props['grid:code'];
-  if (code !== undefined) {
-    const cell = code.replace(/^H3-/, '');
-    if (!isValidCell(cell) || getResolution(cell) !== RESOLUTION) {
-      errors.push(`grid:code ${code} is not a resolution ${RESOLUTION} H3 cell`);
-    } else if (doc.geometry?.type !== 'Polygon' || !close(cellsToMultiPolygon([cell], true), [doc.geometry.coordinates])) {
-      errors.push('geometry is not the polygon of grid:code');
-    }
-  }
-  if (!close(doc.bbox, bboxOf(doc.geometry))) {
-    errors.push('bbox is not the bbox of the geometry');
-  }
   const covered = (collection.extent?.spatial?.bbox ?? []).some(
     (b) => b[0] <= doc.bbox[0] && b[1] <= doc.bbox[1] && b[2] >= doc.bbox[2] && b[3] >= doc.bbox[3],
   );
@@ -463,14 +320,8 @@ const checkFooter = (doc) => {
 
 // The GeoParquet 2.0.0 geo key. Its bbox is over the cell centres of the located rows.
 const checkGeo = (geo, rows) => {
-  const errors = [];
-  if (geo.version !== '2.0.0' || geo.primary_column !== 'geometry') {
-    errors.push('version is not 2.0.0 or primary_column is not geometry');
-  }
+  const errors = shared.geoKeyErrors(geo);
   const column = geo.columns?.geometry ?? {};
-  if (column.encoding !== 'WKB' || JSON.stringify(column.geometry_types) !== '["Point"]' || 'crs' in column) {
-    errors.push('geometry is not WKB Point with no crs');
-  }
   const centres = (rows.h3_cell_id ?? []).filter((c) => c !== null).map((c) => cellToLatLng(c));
   if (centres.length === 0) {
     if ('bbox' in column) errors.push('a file with no located row has a bbox');
@@ -530,7 +381,16 @@ const slugErrors = (registryDoc, uses) => {
 };
 report('registry/boards.json', slugErrors(boards, slugUses));
 
-// 7. Broken documents must fail
+// 7. The validator for outside files passes every document here.
+const regs = { registry, scaleRegistry, boards };
+const allDocuments = ['templates', 'footers', 'examples', 'registry']
+  .flatMap((dir) => readdirSync(dir, { recursive: true }).filter((n) => n.endsWith('.json')).map((n) => `${dir}/${n}`));
+for (const file of allDocuments) {
+  const { kind, errors } = shared.validateDocument(file, read(file), regs);
+  report(file, errors.map((e) => `validate.mjs ${kind}, ${e}`));
+}
+
+// 8. Broken documents must fail
 let rejected = 0;
 const mustFail = (file, what, errors, expect) => {
   const hit = expect ? errors.some((e) => e.includes(expect)) : errors.length > 0;
@@ -1011,6 +871,22 @@ for (const [what, mutate] of Object.entries(brokenBoards)) {
   mutate(doc, uses);
   mustFail('registry/boards.json', `a board registry with ${what}`, slugErrors(doc, uses));
 }
+// A moving Item has no grid:code, so only its geometry shows the resolution.
+const [movingFile, movingItem] = itemOf('moving');
+const movingPolygons = movingItem.geometry.type === 'Polygon' ? [movingItem.geometry.coordinates] : movingItem.geometry.coordinates;
+const movingCells = [...new Set(movingPolygons.flatMap((p) => polygonToCells(p, RESOLUTION, true)))];
+for (const [what, cells] of Object.entries({
+  'resolution 7 cells': [...new Set(movingCells.map((c) => cellToParent(c, 7)))],
+  'resolution 9 cells': movingCells.map((c) => cellToCenterChild(c, 9)),
+})) {
+  const doc = structuredClone(movingItem);
+  doc.geometry = geometryOf(cells);
+  doc.bbox = bboxOf(doc.geometry);
+  mustFail(movingFile, `validate.mjs with a moving Item built from ${what}`,
+    shared.validateDocument(movingFile, doc, regs).errors, `union of resolution ${RESOLUTION}`);
+}
+const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
+mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;
 mustFail('registry/scales.json', 'a scale registry with a scale that has no period', checkRegistry(registry, noPeriod));

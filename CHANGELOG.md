@@ -30,6 +30,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - Board registry `registry/boards.json` with every board slug, its vendor, model, template home and first template.
   `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
+- `npm run validate` checks templates, footers, geo keys, Collections, Items and registries from outside this repository,
+  one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
 
 ### Changed
