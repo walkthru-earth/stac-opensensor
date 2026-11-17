@@ -21,6 +21,10 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - ELECROW CrowPanel e-paper template `crowpanel-epaper-telemetry-v1` with a SEN63C, and a fixed CrowPanel example Thing
   whose owner config sets display hints
 - `check-profile` checks every template column against the registry, registry scales against their copies, and the new hints
+- Setup manifest in the template `firmware` block, as in firmware decision 0003. `setup` lists the wizard steps, `settings`
+  the Device settings sections and `config_keys` the typed `SET_CONFIG` keys they show. Never a value, never a secret or
+  app owned key. `check-profile` checks that every listed key is declared and refuses a broken manifest
+- `opensensor:title_i18n` and `opensensor:description_i18n` on `classification:classes` entries and on bit fields and their classes
 
 ### Changed
 

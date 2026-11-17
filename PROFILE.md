@@ -255,6 +255,8 @@ A template MAY carry them, as the firmware build knows them, and the owner confi
 | `description` | Column | Default longer text, plain text |
 | `opensensor:title_i18n` | Column | Language code to label, for every other language |
 | `opensensor:description_i18n` | Column | Language code to description, for every other language |
+| `opensensor:title_i18n` | Class or bit field | Language code to the label of a `classification:classes` entry or a bit field |
+| `opensensor:description_i18n` | Class or bit field | Language code to the description of a class or a bit field |
 | `opensensor:decimals` | Column | Digits after the point when a value is shown, 0 to 9. Display only, the [Canonical form](#canonical-form) rounding of statistics does not change |
 | `opensensor:group` | Column | One of the groups below |
 | `opensensor:scale` | Column | Id of the health scale in `opensensor:scales` |
@@ -274,6 +276,8 @@ A client uses it to place an unknown column next to its kin.
 | Hint | Order |
 | --- | --- |
 | Column label | Column `opensensor:title_i18n` for the language, column `title`, registry `label` for the column's `opensensor:property`, then the column name with `_` as spaces |
+| Class label | Class `opensensor:title_i18n` for the language, class `title`, then the class `name` with `-` and `_` as spaces |
+| Bit field label | Bit field `opensensor:title_i18n` for the language, then the bit field `name` with `-` and `_` as spaces |
 | Thing name | Collection `title`, template `title`, then the footer `thing.board` |
 | Decimals | Column `opensensor:decimals`, registry `decimals`, then 0 for an integer column and 2 otherwise |
 | Group | Column `opensensor:group`, then registry `group` |
@@ -314,6 +318,11 @@ Bit 4 is `fan-error`, 6 `rht-error`, 11 `pm-error`, 12 `co2-error` and 21 `fan-s
 as in the firmware [os_sen6x.h](https://github.com/walkthru-earth/opensensor-space-firmware/blob/e2eb30b6b1fb30b3e237d63e24ff5683a50cd185/firmware/common/sensors/src/os_sen6x.h#L128-L135).
 Each bit field has the classes `0` `ok` and `1` `set`.
 Today's firmware does not emit bit fields yet. `npm run check-profile` checks a template that does.
+
+A class in `classification:classes` and a bit field or its classes MAY carry `opensensor:title_i18n` and `opensensor:description_i18n`,
+the same maps as on a column, so a client shows a status in any language without its own strings.
+A class keeps its plain `title` and `description` from Classification. A bit field has no `title`, so its map translates the `name`.
+Class and bit field translations come from the template. The owner config does not change them.
 
 ## File Item
 
@@ -511,6 +520,63 @@ Firmware and app docs cite this profile by its full 40 character commit.
 | dict | string | **REQUIRED**. SHA-256 of `telemetry_fields.inc`, as the device sends it |
 | live_keys | Map\<string, string> | **REQUIRED**. Column name to LIVE JSON key |
 | unit_labels | Map\<string, string> | Column name to firmware unit label, where it differs from `unit` |
+| setup | \[Step] | Ordered setup wizard steps, 31 at most, see [Setup manifest](#setup-manifest) |
+| settings | \[Section] | Ordered Device settings sections |
+| config_keys | Map\<string, Key> | The `SET_CONFIG` keys a step or section shows |
+
+### Setup manifest
+
+The board declares its own setup wizard and Device settings, as in firmware
+[decision 0003](https://github.com/walkthru-earth/opensensor-space-firmware/blob/85a0e77c9b3a70ec407e872346af867cd7d66f2e/docs/shared/decisions/0003-metadata-driven-apps.md).
+The generator copies `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
+They are hashed with the template, so a change moves `desc` and never moves `dict`.
+Setup is local. It lives in the template and on the device, never in a Collection or an Item.
+
+| Step field | Type | Description |
+| --- | --- | --- |
+| id | string | **REQUIRED**. Lower case letters, digits and `_`. An app catalog step or the board's own id |
+| req | boolean | True when setup cannot finish without the step. Default false |
+| keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
+
+A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
+The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan` and `bonds`.
+`find`, `pair`, `permission` and `done` stay app owned and never appear.
+An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
+The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
+
+| Key field | Type | Description |
+| --- | --- | --- |
+| type | string | **REQUIRED**. `boolean`, `integer`, `enum` or `text` |
+| values | \[string \| number] or Range | `enum` needs the list of choices. `integer` needs a Range. `text` MAY have a Range of byte lengths, at most 64. `boolean` has none |
+| applies | string | **REQUIRED**. `immediately`, `next sample`, `next boot` or `action`. Only a `boolean` is an `action` |
+| page | integer | **REQUIRED**. The `GET_CONFIG` page that reads the key back |
+| label | string | **REQUIRED**. Plain label in the default language |
+| label_i18n | Map\<string, string> | Language code to label, the same shape as `opensensor:title_i18n` |
+
+A Range is `{"min", "max"}`, two integers with `min` at most `max`.
+A key name has two or more dot separated parts of lower case letters, digits and `_`, at most 48 characters, such as `panel.theme`.
+Keys under `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
+So a template can never declare the PIN, the Wi-Fi password or the LAN token.
+A key holds a name and a type, never a current or default value.
+The app keeps its own safety floors, such as confirming every `action` and requiring a location for a fixed Thing, whatever the manifest says.
+
+```json
+"firmware": {
+  "setup": [
+    {"id": "location", "req": true},
+    {"id": "wifi"},
+    {"id": "panel", "keys": ["panel.theme"]}
+  ],
+  "settings": [{"id": "panel", "keys": ["panel.theme", "panel.refresh_s"]}],
+  "config_keys": {
+    "panel.theme": {"type": "enum", "values": ["light", "dark"], "applies": "immediately", "page": 7, "label": "Theme"},
+    "panel.refresh_s": {"type": "integer", "values": {"min": 60, "max": 3600}, "applies": "next sample", "page": 7, "label": "Refresh"}
+  }
+}
+```
+
+The key names above are a sketch. The firmware fixes the real names and the board settings page.
+`npm run check-profile` checks a template with a full manifest and refuses a secret key, an undeclared step key, a value and a decimal type.
 
 ## Full example
 
