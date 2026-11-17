@@ -27,9 +27,12 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 
 ## Frozen release
 
-- OD-2026-11-04-A freezes the published v0.1.0 schema files. This repo extends the freeze to templates, footers,
-  fixtures and examples, because the firmware and the app copy them byte for byte. Never edit any of them in place.
-  A change ships as a new version with an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
+- OD-2026-11-04-A freezes what is published. Files served on Pages for a released tag are never overwritten,
+  and the publish workflow runs only on a GitHub release, so a merge to `main` never touches them.
+- On `main` nothing is frozen. Since 2026-10-26 the owner rule is no back-compat, with firmware and mobile moving in lockstep.
+  Schemas, templates, footers, fixtures and examples MAY change on `main` while their `$id` still names the last release.
+  Every such change gets an entry under `Unreleased` in [CHANGELOG.md](CHANGELOG.md) and ships as the next version,
+  whose release moves every URL listed below. Firmware and the app copy these files byte for byte, so they pin a tag.
 - The extension, profile, template and footer share one version. While it is 0.x a minor bump is breaking.
 - A version bump moves all of these together.
   - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),

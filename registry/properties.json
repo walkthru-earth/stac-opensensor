@@ -98,7 +98,7 @@
       "unit": "ug/m3",
       "decimals": 1,
       "scale": null,
-      "note": "WHO 2021 sets no guideline for PM1."
+      "note": "WHO 2021 sets no guideline for PM1, so it gets no scale."
     },
     "http://vocab.nerc.ac.uk/standard_name/mole_fraction_of_carbon_dioxide_in_air/": {
       "label": {
@@ -861,7 +861,7 @@
       "unit": "ug/m3",
       "decimals": 0,
       "scale": null,
-      "note": "Factory CF=1 values are not ambient, so they get no health scale."
+      "note": "CF=1 is the factory value, uncorrected for ambient air, so it gets no health scale."
     },
     "urn:walkthru-earth:property:pm1_cf1_mass_concentration": {
       "label": {
@@ -877,7 +877,7 @@
       "unit": "ug/m3",
       "decimals": 0,
       "scale": null,
-      "note": "Factory CF=1 values are not ambient, so they get no health scale."
+      "note": "CF=1 is the factory value, uncorrected for ambient air, so it gets no health scale."
     },
     "urn:walkthru-earth:property:pm25_batch_candidate_mass_concentration": {
       "label": {
@@ -920,7 +920,7 @@
       "unit": "ug/m3",
       "decimals": 0,
       "scale": null,
-      "note": "Factory CF=1 values are not ambient, so they get no health scale."
+      "note": "CF=1 is the factory value, uncorrected for ambient air, so it gets no health scale."
     },
     "urn:walkthru-earth:property:pm4_mass_concentration": {
       "label": {

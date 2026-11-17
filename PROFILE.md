@@ -264,7 +264,7 @@ A template MAY carry them, as the firmware build knows them, and the owner confi
 Core `title` and `description` stay plain strings, as STAC defines them, so every STAC tool shows them.
 Other languages go in the `_i18n` maps, keyed by a BCP 47 language code such as `ar`, the same shape as a Step `label`.
 STAC has no inline translation field. The Language extension links whole translated documents, which a board cannot write.
-A client picks the map entry for its language, else the plain field.
+A client picks the map entry for its language, else the plain field, else the registry English label.
 
 `opensensor:group` is one of `particulate`, `gas`, `climate`, `light`, `motion`, `location`, `power`, `time` and `device`.
 A client uses it to place an unknown column next to its kin.
@@ -298,7 +298,8 @@ So a new board that uses a new quantity adds its registry entry in the same chan
 A client that meets an unknown sensor needs only the registry and the template to label it, round it and group it.
 
 The WHO 2021 PM2.5 and PM10 scales are the only shared scales.
-PM1, PM4, the CF=1 particle columns and CO2 point at `null`, since no scale with a source is agreed for them.
+PM1, PM4, the CF=1 particle columns, the PM2.5 batch candidate and CO2 point at `null`.
+WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected, and the batch candidate is still under review.
 CO2 is a documented TODO for the owner, who chooses a scale and its source before a client shows CO2 bands.
 
 ### Bit fields
