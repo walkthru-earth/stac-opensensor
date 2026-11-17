@@ -1,6 +1,8 @@
 // Checks the Thing profile, the board templates and the footers beyond what stac-node-validator does.
 // JSON Schema holds the structural rules. This script holds the rules that need more than one document.
-// 1. Board templates in templates/ validate, sit at templates/<board>/<firmware.dict>.json and name their dictionary.
+// 0. The property and scale registries in registry/ validate and agree with each other.
+// 1. Board templates in templates/ validate, sit at templates/<board>/<firmware.dict>.json, name their dictionary,
+//    and use only properties of the registry, with its units and its scales.
 // 2. The root Catalog links every Thing Collection by a relative href.
 // 3. Every Collection validates, matches its template, and equals the canonical Collection that
 //    scripts/canonical.mjs rebuilds from the template, the footer, the owner config and the ledger.
@@ -25,13 +27,14 @@ const hasScheme = (href) => /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href);
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
-for (const name of ['schema', 'profile', 'template', 'footer']) {
+for (const name of ['schema', 'profile', 'template', 'footer', 'registry']) {
   ajv.addSchema(read(`json-schema/${name}.json`));
 }
 const base = 'https://walkthru-earth.github.io/stac-opensensor/v0.1.0/';
 const profile = ajv.getSchema(`${base}profile.json`);
 const templateSchema = ajv.getSchema(`${base}template.json`);
 const footerSchema = ajv.getSchema(`${base}footer.json`);
+const registrySchema = ajv.getSchema(`${base}registry.json`);
 const schemaErrors = (validate, doc) => (validate(doc) ? [] : [ajv.errorsText(validate.errors)]);
 
 let failures = 0;
@@ -42,13 +45,68 @@ const report = (file, errors) => {
   }
 };
 const warn = (file, message) => console.warn(`warning ${file}: ${message}`);
+const same = (a, b) => differences(a, b).length === 0;
+
+// 0. Registries
+const registry = read('registry/properties.json');
+const scaleRegistry = read('registry/scales.json');
+const checkRegistry = (properties, scales) => {
+  const errors = [...schemaErrors(registrySchema, properties), ...schemaErrors(registrySchema, scales)];
+  for (const [uri, entry] of Object.entries(properties.properties ?? {})) {
+    if (typeof entry.scale === 'string' && !scales.scales?.[entry.scale]) {
+      errors.push(`${uri} points at scale ${entry.scale}, which registry/scales.json does not have`);
+    }
+  }
+  return errors;
+};
+report('registry/', checkRegistry(registry, scaleRegistry));
+
+// A scale id names one scale everywhere. A document that reuses a registry id must carry the same scale.
+const scaleErrors = (scales) => Object.entries(scales ?? {})
+  .filter(([id, scale]) => scaleRegistry.scales[id] && !same(scale, scaleRegistry.scales[id]))
+  .map(([id]) => `scale ${id} differs from registry/scales.json`);
+
+// Display hints in the template or the Collection. primary and scale must name what the document holds.
+const hintErrors = (doc) => {
+  const errors = [];
+  const columns = doc.item_assets?.data?.['table:columns'] ?? [];
+  const primary = doc['opensensor:primary'];
+  if (primary !== undefined && !columns.some((c) => c.name === primary)) {
+    errors.push(`opensensor:primary ${primary} is not a column`);
+  }
+  for (const column of columns) {
+    const scale = column['opensensor:scale'];
+    if (scale !== undefined && !doc['opensensor:scales']?.[scale]) {
+      errors.push(`column ${column.name} points at missing scale ${scale}`);
+    }
+    if ('classification:bitfields' in column && column.unit !== '{bitmask}') {
+      errors.push(`column ${column.name} has classification:bitfields but its unit is not {bitmask}`);
+    }
+  }
+  return [...errors, ...scaleErrors(doc['opensensor:scales'])];
+};
+
+// Every column property is in the registry, with the same unit.
+const registryErrors = (doc) => {
+  const errors = [];
+  for (const column of doc.item_assets?.data?.['table:columns'] ?? []) {
+    const entry = registry.properties[column['opensensor:property']];
+    if (!entry) {
+      errors.push(`column ${column.name} property ${column['opensensor:property']} is not in registry/properties.json`);
+    } else if (entry.unit !== column.unit) {
+      errors.push(`column ${column.name} unit ${column.unit} differs from the registry unit ${entry.unit}`);
+    }
+  }
+  return errors;
+};
 
 // 1. Templates
+const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc)];
 const templates = new Map();
 for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
   const doc = read(file);
-  const errors = schemaErrors(templateSchema, doc);
+  const errors = checkTemplate(doc);
   const dictLink = doc.links?.find((l) => l.rel === 'describedby');
   if (dictLink?.['file:checksum'] !== `1220${doc.firmware?.dict}`) {
     errors.push('describedby file:checksum does not match firmware.dict');
@@ -62,7 +120,11 @@ for (const name of readdirSync('templates', { recursive: true }).filter((n) => n
 
 // Shared helpers
 const columnsOf = (doc) => doc.item_assets?.data?.['table:columns'] ?? [];
-const publicColumn = ({ title, 'opensensor:scale': scale, ...rest }) => JSON.stringify(rest);
+// The display hints a Collection may change. Every other column member is the template's.
+const HINTS = ['title', 'description', 'opensensor:title_i18n', 'opensensor:description_i18n', 'opensensor:decimals',
+  'opensensor:group', 'opensensor:scale'];
+const publicColumn = (column) => JSON.stringify(Object.fromEntries(Object.entries(column)
+  .filter(([key]) => !HINTS.includes(key))));
 const describedby = (doc, type) => (doc.links ?? []).filter((l) => l.rel === 'describedby' && l.type === type);
 const ringsOf = (geometry) => {
   if (geometry?.type === 'Polygon') return [geometry.coordinates];
@@ -94,7 +156,7 @@ const ownerOf = (thing) => {
 
 // 3. Collections
 const checkCollection = (file, doc) => {
-  const errors = [...schemaErrors(profile, doc), ...checkLinks(file, doc)];
+  const errors = [...schemaErrors(profile, doc), ...checkLinks(file, doc), ...hintErrors(doc)];
   if (basename(dirname(file)) !== `thing=${doc.id}`) {
     errors.push(`Collection does not sit in thing=${doc.id}/`);
   }
@@ -112,7 +174,7 @@ const checkCollection = (file, doc) => {
   }
   const columns = columnsOf(doc);
   if (JSON.stringify(columns.map(publicColumn)) !== JSON.stringify(columnsOf(entry.doc).map(publicColumn))) {
-    errors.push(`columns differ from ${entry.file} beyond title and opensensor:scale`);
+    errors.push(`columns differ from ${entry.file} beyond the display hints`);
   }
   for (const key of ['keywords', 'instruments', 'opensensor:sample_interval_s']) {
     if (JSON.stringify(doc[key]) !== JSON.stringify(entry.doc[key])) {
@@ -128,10 +190,6 @@ const checkCollection = (file, doc) => {
   }
   const ids = new Set();
   for (const column of columns) {
-    const scale = column['opensensor:scale'];
-    if (scale !== undefined && !doc['opensensor:scales']?.[scale]) {
-      errors.push(`column ${column.name} points at missing scale ${scale}`);
-    }
     const id = column['opensensor:field_id'];
     if (id !== undefined) {
       if (!Number.isInteger(id) || id < 1 || ids.has(id)) {
@@ -275,7 +333,8 @@ const checkRows = (fixture) => {
 };
 
 // 2. Walk examples/
-const files = readdirSync('examples', { recursive: true }).filter((n) => n.endsWith('.json')).map((n) => `examples/${n}`);
+const files = readdirSync('examples', { recursive: true }).filter((n) => n.endsWith('.json')).sort()
+  .map((n) => `examples/${n}`);
 const docs = new Map(files.map((file) => [file, read(file)]));
 const collections = new Map();
 for (const [file, doc] of docs) {
@@ -614,6 +673,103 @@ for (const name of footerFiles) {
   const partial = structuredClone(fixture);
   partial.rows.location_source[0] = 2;
   mustFail(fixture.path, 'a row with a partial location', checkRows(partial));
+}
+
+// Display hints and the registry. A template may carry every hint, and a wrong hint must fail.
+const SEN6X_STATUS_BITS = [
+  [4, 'fan-error', 'Fan on but its speed is 0 RPM. Sticky.'],
+  [6, 'rht-error', 'Humidity and temperature sensor error. Sticky.'],
+  [11, 'pm-error', 'Particulate sensor error. Sticky.'],
+  [12, 'co2-error', 'CO2 sensor error. Sticky.'],
+  [21, 'fan-speed-warning', 'Fan speed off target. Clears itself.'],
+].map(([offset, name, description]) => ({
+  offset, length: 1, name, description, classes: [{ value: 0, name: 'ok' }, { value: 1, name: 'set' }],
+}));
+const hinted = (() => {
+  const entry = [...templates.values()].find((t) => t.board === 'elecrow-crowpanel-epaper-42');
+  const doc = structuredClone(entry.doc);
+  const column = (name) => columnsOf(doc).find((c) => c.name === name);
+  doc['opensensor:primary'] = 'pm25_mass_ug_m3';
+  doc['opensensor:scales'] = { 'who-2021-pm25': scaleRegistry.scales['who-2021-pm25'] };
+  Object.assign(column('pm25_mass_ug_m3'), {
+    title: 'PM2.5',
+    description: 'Fine particles from the SEN63C.',
+    'opensensor:title_i18n': { ar: 'الجسيمات الدقيقة PM2.5' },
+    'opensensor:description_i18n': { en: 'Fine particles from the SEN63C.' },
+    'opensensor:decimals': 1,
+    'opensensor:group': 'particulate',
+    'opensensor:scale': 'who-2021-pm25',
+  });
+  column('sen6x_device_status')['classification:bitfields'] = SEN6X_STATUS_BITS;
+  return { file: entry.file, doc };
+})();
+report(hinted.file, checkTemplate(hinted.doc).map((e) => `the template with every display hint fails, ${e}`));
+{
+  const [file, collection] = [...collections.values()][0];
+  const doc = structuredClone(collection);
+  const column = columnsOf(doc).find((c) => c.unit === 'ug/m3');
+  Object.assign(column, {
+    description: 'Owner note on this column.',
+    'opensensor:title_i18n': { en: 'Fine dust' },
+    'opensensor:decimals': 0,
+    'opensensor:group': 'particulate',
+  });
+  report(file, checkCollection(file, doc).map((e) => `a Collection with owner display hints fails, ${e}`));
+}
+const brokenTemplates = {
+  'a primary that is not a column': (doc) => {
+    doc['opensensor:primary'] = 'pm3_mass_ug_m3';
+  },
+  'a property the registry does not have': (doc) => {
+    columnsOf(doc)[0]['opensensor:property'] = 'urn:walkthru-earth:property:unknown';
+  },
+  'a unit that differs from the registry': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'co2_ppm').unit = 'ppm';
+  },
+  'a scale the template does not hold': (doc) => {
+    delete doc['opensensor:scales'];
+  },
+  'a WHO scale with another guideline': (doc) => {
+    doc['opensensor:scales']['who-2021-pm25'] = { ...doc['opensensor:scales']['who-2021-pm25'], guideline: 10 };
+  },
+  'decimals of -1': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:decimals'] = -1;
+  },
+  'a group outside the vocabulary': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:group'] = 'weather';
+  },
+  'an upper case language code': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:title_i18n'] = { EN: 'PM2.5' };
+  },
+  'bit fields on a column that is not {bitmask}': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'sen6x_status')['classification:bitfields'] = SEN6X_STATUS_BITS;
+  },
+};
+for (const [what, mutate] of Object.entries(brokenTemplates)) {
+  const doc = structuredClone(hinted.doc);
+  mutate(doc);
+  mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
+}
+for (const [file, collection] of collections.values()) {
+  const primary = structuredClone(collection);
+  primary['opensensor:primary'] = 'pm3_mass_ug_m3';
+  mustFail(file, 'a Collection whose primary is not a column', checkCollection(file, primary), 'opensensor:primary');
+}
+const brokenRegistries = {
+  'a scale it does not hold': (properties) => {
+    Object.values(properties.properties)[0].scale = 'who-2005-pm25';
+  },
+  'a label with no English': (properties) => {
+    Object.values(properties.properties)[0].label = { ar: 'الوقت' };
+  },
+  'a group outside the vocabulary': (properties) => {
+    Object.values(properties.properties)[0].group = 'weather';
+  },
+};
+for (const [what, mutate] of Object.entries(brokenRegistries)) {
+  const doc = structuredClone(registry);
+  mutate(doc);
+  mustFail('registry/properties.json', `a registry with ${what}`, checkRegistry(doc, scaleRegistry));
 }
 
 if (failures > 0) {

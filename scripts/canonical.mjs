@@ -184,7 +184,11 @@ export const buildCollection = ({ template, footer, owner, ledger }) => {
     const extra = owner.columns?.[column.name];
     return extra ? { ...column, ...extra } : column;
   });
-  const usesScales = columns.some((c) => 'opensensor:scale' in c);
+  // The owner may override the display hints of the template. Only the scales a column uses are published.
+  const primary = owner.primary ?? template['opensensor:primary'];
+  const known = { ...template['opensensor:scales'], ...owner.scales };
+  const used = [...new Set(columns.map((c) => c['opensensor:scale']).filter((id) => id !== undefined))];
+  const scales = Object.fromEntries(Object.entries(known).filter(([id]) => used.includes(id)));
   const collection = {
     type: 'Collection',
     stac_version: '1.1.0',
@@ -204,6 +208,7 @@ export const buildCollection = ({ template, footer, owner, ledger }) => {
     },
     'opensensor:sample_interval_s': template['opensensor:sample_interval_s'],
     'opensensor:mobility': footer.thing.mobility,
+    ...(primary ? { 'opensensor:primary': primary } : {}),
     'partition:scheme': 'hive',
     'partition:strategy': 'temporal',
     'partition:keys': ['year', 'month', 'day'].map((name) => ({
@@ -212,7 +217,7 @@ export const buildCollection = ({ template, footer, owner, ledger }) => {
       description: `UTC ${name} of the file window, zero padded on disk`,
     })),
     'partition:glob': `s3://${owner.prefix}/thing=${footer.thing.id}/year=*/month=*/day=*/*.parquet`,
-    ...(usesScales ? { 'opensensor:scales': owner.scales } : {}),
+    ...(used.length > 0 ? { 'opensensor:scales': scales } : {}),
     item_assets: { data: { ...template.item_assets.data, 'table:columns': columns } },
     links: [
       { rel: 'root', href: '../catalog.json', type: 'application/json' },
