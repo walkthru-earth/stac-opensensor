@@ -108,6 +108,7 @@ The real range of a file goes in core `statistics` on the Item column.
 | Field Name | Type                           | Description |
 | ---------- | ------------------------------ | ----------- |
 | source     | string (URI)                   | **REQUIRED**. Citation for the scale, such as a WHO guideline |
+| period     | string                         | **REQUIRED**. ISO 8601 averaging period the bounds apply to, such as `P1D` |
 | steps      | \[[Step Object](#step-object)] | **REQUIRED**. Steps in rising order |
 | unit       | string                         | Unit the step bounds use |
 | guideline  | number                         | Value of a guideline line drawn on charts |
@@ -159,7 +160,7 @@ Each entry holds an English `label`, `short_label` and `definition`, with Arabic
 plus an optional `symbol`, the `group`, the UCUM `unit`, default `decimals` and a default `scale`.
 A `scale` of `null` means no scale on purpose. WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected factory values,
 the PM2.5 batch candidate is a correction under review, and CO2 waits for the owner to choose a scale and its source.
-Shared scales, today the WHO 2021 annual mean scales for PM2.5 and PM10, live in the [scale registry](registry/scales.json).
+Shared scales, today the WHO 2021 24-hour scales for PM2.5 and PM10, live in the [scale registry](registry/scales.json).
 Both validate against the [registry schema](json-schema/registry.json) and are published beside the schemas on release.
 
 ### Rendering an unknown sensor

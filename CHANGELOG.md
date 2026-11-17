@@ -27,12 +27,13 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - Display hints are published. The rule that the app profile never goes into published STAC is gone.
   A user's own overrides still stay in the app
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
+- A Scale object requires `period`, the ISO 8601 averaging period its bounds apply to
 - The publish workflow also serves `registry/` beside the schemas
 
 ### Fixed
 
-- The `who-2021-pm10` scale mixed averaging periods, an annual guideline of 15 with 24 hour interim targets.
-  Its interim targets are now the WHO 2021 annual means 20, 30, 50 and 70 ug/m3, matching the annual PM2.5 scale
+- The WHO scales mixed averaging periods. Both are now the WHO 2021 24-hour guideline and interim targets the app uses,
+  PM2.5 15, 25, 37.5, 50 and 75 ug/m3 and PM10 45, 50, 75, 100 and 150 ug/m3, with the app's step colours
 
 ## [v0.1.0] - 2026-11-04
 

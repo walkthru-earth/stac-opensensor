@@ -297,7 +297,9 @@ at `https://walkthru-earth.github.io/stac-opensensor/<tag>/registry/properties.j
 So a new board that uses a new quantity adds its registry entry in the same change.
 A client that meets an unknown sensor needs only the registry and the template to label it, round it and group it.
 
-The WHO 2021 PM2.5 and PM10 scales are the only shared scales.
+The WHO 2021 PM2.5 and PM10 24-hour scales are the only shared scales, the same steps and colours the app draws.
+Every scale names the averaging period its bounds apply to in `period`, an ISO 8601 duration such as `P1D`.
+A client that compares a shorter or longer mean against a scale says which period it shows.
 PM1, PM4, the CF=1 particle columns, the PM2.5 batch candidate and CO2 point at `null`.
 WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected, and the batch candidate is still under review.
 CO2 is a documented TODO for the owner, who chooses a scale and its source before a client shows CO2 bands.
@@ -421,7 +423,7 @@ These choices hold for every Thing.
 | Column ids | `opensensor:field_id` is the 1-based FIELD order, append only. The Thing release is a fresh baseline, every board renumbered its ids once there, and the append only rule holds from that baseline on |
 | Time | `event_time_utc_us`, int64 microseconds since the Unix epoch, as `table:primary_datetime` |
 | Location | H3 cell per row, resolution 8 for fixed and moving Things alike, see [Location](#location) |
-| Health scales | WHO 2021 annual mean guideline and interim targets for PM2.5 and PM10 in [registry/scales.json](registry/scales.json), labels in English and Arabic, `color_hint` per step. PM1, PM4 and CO2 have none yet |
+| Health scales | WHO 2021 24-hour guideline and interim targets for PM2.5 and PM10 in [registry/scales.json](registry/scales.json), `period` `P1D`, labels in English and Arabic, `color_hint` per step. PM1, PM4 and CO2 have none yet |
 | Checksums | SHA-256 multihash in `file:checksum`, the `1220` prefix then 64 hex characters |
 | License | CC BY 4.0 |
 | Firmware facts | LIVE keys, protocol floor and unit labels stay in the template under `firmware` |

@@ -614,6 +614,11 @@ const brokenCollections = {
   'a protocol relative root link': (doc) => {
     doc.links.find((l) => l.rel === 'root').href = '//example.com/catalog.json';
   },
+  'a scale with no period': (doc) => {
+    for (const scale of Object.values(doc['opensensor:scales'] ?? {})) {
+      delete scale.period;
+    }
+  },
 };
 for (const [file, collection] of collections.values()) {
   for (const [what, mutate] of Object.entries(brokenCollections)) {
@@ -732,6 +737,16 @@ const brokenTemplates = {
   'a WHO scale with another guideline': (doc) => {
     doc['opensensor:scales']['who-2021-pm25'] = { ...doc['opensensor:scales']['who-2021-pm25'], guideline: 10 };
   },
+  'a scale with no period': (doc) => {
+    const { period, ...rest } = doc['opensensor:scales']['who-2021-pm25'];
+    doc['opensensor:scales']['who-2021-pm25'] = rest;
+  },
+  'a scale period that is not an ISO 8601 duration': (doc) => {
+    doc['opensensor:scales']['who-2021-pm25'] = { ...doc['opensensor:scales']['who-2021-pm25'], period: '24h' };
+  },
+  'a WHO scale with another period': (doc) => {
+    doc['opensensor:scales']['who-2021-pm25'] = { ...doc['opensensor:scales']['who-2021-pm25'], period: 'P1Y' };
+  },
   'decimals of -1': (doc) => {
     columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:decimals'] = -1;
   },
@@ -771,6 +786,9 @@ for (const [what, mutate] of Object.entries(brokenRegistries)) {
   mutate(doc);
   mustFail('registry/properties.json', `a registry with ${what}`, checkRegistry(doc, scaleRegistry));
 }
+const noPeriod = structuredClone(scaleRegistry);
+delete noPeriod.scales['who-2021-pm10'].period;
+mustFail('registry/scales.json', 'a scale registry with a scale that has no period', checkRegistry(registry, noPeriod));
 
 if (failures > 0) {
   process.exit(1);
