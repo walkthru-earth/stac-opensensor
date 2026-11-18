@@ -2,7 +2,7 @@
 // JSON Schema holds the structural rules. This script holds the rules that need more than one document.
 // 0. The property and scale registries in registry/ validate and agree with each other.
 // 1. Board templates in templates/ validate, sit at templates/<board>/<firmware.dict>.json, name their dictionary,
-//    and use only properties of the registry, with its units and its scales.
+//    use only properties of the registry, with its units and its scales, and declare every setup key they show.
 // 2. The root Catalog links every Thing Collection by a relative href.
 // 3. Every Collection validates, matches its template, and equals the canonical Collection that
 //    scripts/canonical.mjs rebuilds from the template, the footer, the owner config and the ledger.
@@ -100,8 +100,34 @@ const registryErrors = (doc) => {
   return errors;
 };
 
+// The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
+// Shapes the schema rejects are skipped here, so their schema errors still reach the report.
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const manifestErrors = (firmware) => {
+  const errors = [];
+  const keys = isObject(firmware?.config_keys) ? firmware.config_keys : {};
+  for (const list of ['setup', 'settings']) {
+    const ids = new Set();
+    for (const step of Array.isArray(firmware?.[list]) ? firmware[list] : []) {
+      if (!isObject(step)) continue;
+      if (ids.has(step.id)) errors.push(`firmware.${list} lists ${step.id} twice`);
+      ids.add(step.id);
+      for (const key of Array.isArray(step.keys) ? step.keys : []) {
+        if (!isObject(keys[key])) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
+      }
+    }
+  }
+  for (const [key, spec] of Object.entries(keys)) {
+    if (!isObject(spec) || !isObject(spec.values)) continue;
+    const { min, max } = spec.values;
+    if (min > max) errors.push(`firmware.config_keys ${key} range runs from ${min} down to ${max}`);
+  }
+  return errors;
+};
+
 // 1. Templates
-const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc)];
+const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc),
+  ...manifestErrors(doc.firmware)];
 const templates = new Map();
 for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
@@ -690,6 +716,37 @@ const SEN6X_STATUS_BITS = [
 ].map(([offset, name, description]) => ({
   offset, length: 1, name, description, classes: [{ value: 0, name: 'ok' }, { value: 1, name: 'set' }],
 }));
+SEN6X_STATUS_BITS[0]['opensensor:title_i18n'] = { ar: 'خطأ المروحة' };
+SEN6X_STATUS_BITS[0].classes[1]['opensensor:title_i18n'] = { ar: 'مرفوع' };
+// A setup manifest in the shape of firmware decision 0003. The key names are a sketch, not the firmware's.
+const CROWPANEL_MANIFEST = {
+  setup: [
+    { id: 'name', req: false },
+    { id: 'location', req: true },
+    { id: 'wifi', req: false },
+    {
+      id: 'panel', req: false, label: 'Display', label_i18n: { ar: 'الشاشة' }, keys: ['panel.theme', 'panel.start_page'],
+    },
+  ],
+  settings: [
+    { id: 'location' },
+    { id: 'wifi' },
+    { id: 'panel', label: 'Display', keys: ['panel.theme', 'panel.refresh_s', 'panel.start_page', 'panel.label'] },
+    {
+      id: 'air', label: 'Air sensor', label_i18n: { ar: 'مستشعر الهواء' }, keys: ['sen6x.co2_asc', 'sen6x.fan_clean'],
+    },
+  ],
+  config_keys: {
+    'panel.theme': {
+      type: 'enum', values: ['light', 'dark'], applies: 'immediately', page: 7, label: 'Theme', label_i18n: { ar: 'المظهر' },
+    },
+    'panel.refresh_s': { type: 'integer', values: { min: 60, max: 3600 }, applies: 'next sample', page: 7, label: 'Refresh' },
+    'panel.start_page': { type: 'enum', values: [0, 1, 2], applies: 'next boot', page: 7, label: 'Start page' },
+    'panel.label': { type: 'text', values: { min: 0, max: 24 }, applies: 'immediately', page: 7, label: 'Panel label' },
+    'sen6x.co2_asc': { type: 'boolean', applies: 'next boot', page: 7, label: 'CO2 self calibration' },
+    'sen6x.fan_clean': { type: 'boolean', applies: 'action', page: 7, label: 'Clean the fan' },
+  },
+};
 const hinted = (() => {
   const entry = [...templates.values()].find((t) => t.board === 'elecrow-crowpanel-epaper-42');
   const doc = structuredClone(entry.doc);
@@ -706,6 +763,12 @@ const hinted = (() => {
     'opensensor:scale': 'who-2021-pm25',
   });
   column('sen6x_device_status')['classification:bitfields'] = SEN6X_STATUS_BITS;
+  Object.assign(column('sen6x_status')['classification:classes'].find((c) => c.name === 'warming'), {
+    title: 'Warming up',
+    'opensensor:title_i18n': { ar: 'قيد التسخين' },
+    'opensensor:description_i18n': { en: 'The sensor is still settling.' },
+  });
+  Object.assign(doc.firmware, structuredClone(CROWPANEL_MANIFEST));
   return { file: entry.file, doc };
 })();
 report(hinted.file, checkTemplate(hinted.doc).map((e) => `the template with every display hint fails, ${e}`));
@@ -758,6 +821,93 @@ const brokenTemplates = {
   },
   'bit fields on a column that is not {bitmask}': (doc) => {
     columnsOf(doc).find((c) => c.name === 'sen6x_status')['classification:bitfields'] = SEN6X_STATUS_BITS;
+  },
+  'an upper case language code on a class': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'sen6x_status')['classification:classes'][1]['opensensor:title_i18n'] = { AR: 'x' };
+  },
+  'an empty translation on a bit field': (doc) => {
+    columnsOf(doc).find((c) => c.name === 'sen6x_device_status')['classification:bitfields'][0]['opensensor:title_i18n'] = {};
+  },
+  'a setup step the app owns': (doc) => {
+    doc.firmware.setup.unshift({ id: 'pair', req: true });
+  },
+  'a setup step listed twice': (doc) => {
+    doc.firmware.setup.push({ id: 'wifi' });
+  },
+  'a step that shows an undeclared key': (doc) => {
+    doc.firmware.settings[2].keys.push('panel.sleep_s');
+  },
+  'more than 31 setup steps': (doc) => {
+    doc.firmware.setup = Array.from({ length: 32 }, (_, i) => ({ id: `step_${i}` }));
+  },
+  'a secret config key': (doc) => {
+    doc.firmware.config_keys['wifi.psk'] = { type: 'text', applies: 'immediately', page: 7, label: 'Password' };
+  },
+  'a config key under a reserved prefix': (doc) => {
+    doc.firmware.config_keys['sensor.model'] = { type: 'text', applies: 'immediately', page: 7, label: 'Model' };
+  },
+  'a config key with one part': (doc) => {
+    doc.firmware.config_keys.theme = doc.firmware.config_keys['panel.theme'];
+  },
+  'a config key that holds a value': (doc) => {
+    doc.firmware.config_keys['panel.theme'].value = 'dark';
+  },
+  'a config key with a default': (doc) => {
+    doc.firmware.config_keys['panel.theme'].default = 'light';
+  },
+  'a decimal config key': (doc) => {
+    doc.firmware.config_keys['panel.refresh_s'].type = 'number';
+  },
+  'an action that is not a boolean': (doc) => {
+    doc.firmware.config_keys['panel.refresh_s'].applies = 'action';
+  },
+  'an integer key with no range': (doc) => {
+    delete doc.firmware.config_keys['panel.refresh_s'].values;
+  },
+  'an integer key with a fractional bound': (doc) => {
+    doc.firmware.config_keys['panel.refresh_s'].values = { min: 0.5, max: 10 };
+  },
+  'a range that runs downwards': (doc) => {
+    doc.firmware.config_keys['panel.refresh_s'].values = { min: 3600, max: 60 };
+  },
+  'an enum key with no values': (doc) => {
+    delete doc.firmware.config_keys['panel.theme'].values;
+  },
+  'an enum key with a range': (doc) => {
+    doc.firmware.config_keys['panel.theme'].values = { min: 0, max: 1 };
+  },
+  'an enum key that repeats a value': (doc) => {
+    doc.firmware.config_keys['panel.theme'].values = ['light', 'light'];
+  },
+  'a boolean key with values': (doc) => {
+    doc.firmware.config_keys['sen6x.co2_asc'].values = [0, 1];
+  },
+  'a null config key': (doc) => {
+    doc.firmware.config_keys['panel.theme'] = null;
+  },
+  'a null setup step': (doc) => {
+    doc.firmware.setup.push(null);
+  },
+  'a setup step with a label that is not a string': (doc) => {
+    doc.firmware.setup[3].label = 7;
+  },
+  'a settings section with an empty label': (doc) => {
+    doc.firmware.settings[3].label = '';
+  },
+  'a step label translation keyed by an upper case tag': (doc) => {
+    doc.firmware.setup[3].label_i18n = { AR: 'x' };
+  },
+  'a text key longer than 64 bytes': (doc) => {
+    doc.firmware.config_keys['panel.label'].values = { min: 0, max: 65 };
+  },
+  'a config key with no page': (doc) => {
+    delete doc.firmware.config_keys['panel.theme'].page;
+  },
+  'a config key with no label': (doc) => {
+    delete doc.firmware.config_keys['panel.theme'].label;
+  },
+  'an applies outside the vocabulary': (doc) => {
+    doc.firmware.config_keys['panel.theme'].applies = 'later';
   },
 };
 for (const [what, mutate] of Object.entries(brokenTemplates)) {
