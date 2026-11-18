@@ -32,8 +32,10 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
 - Property registry entries for air pressure (`hPa`) and nitrogen dioxide (`[ppb]`), with English and Arabic labels
-- Arabic for every `short_label` and for the particle count labels. The Arabic waits for a native speaker check
-- `check-profile` refuses a registry unit that is not printable ASCII, such as `µg/m³`
+- Arabic for every `short_label` and for the `label` of each measurement a card shows, the particle counts among them.
+  Diagnostic and device labels stay English. The Arabic waits for a native speaker check
+- `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
+  such as `µg/m³` or `hPa ` with a trailing space
 
 ### Changed
 
