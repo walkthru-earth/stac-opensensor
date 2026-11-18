@@ -242,6 +242,8 @@ npm test
 `npm test` checks the Markdown, validates the examples against the local schemas and runs `scripts/check-profile.mjs`.
 The profile check also makes sure that broken Items, such as a resolution 7 cell, fail.
 After a release, `npm run check-examples-live` validates the examples against the published schemas.
+`npm run check-live-schemas` checks that each schema `$id` URL serves the bytes of its repo file.
+Both need network, so `npm test` leaves them out.
 To format the examples, run `npm run format-examples`.
 
 ## Releasing
@@ -256,7 +258,8 @@ The extension, profile, template and footer schemas share one version, see [Vers
 5. The `Publish JSON Schema` workflow runs the tests and copies `json-schema/` to `https://walkthru-earth.github.io/stac-opensensor/<tag>/`.
    That host answers with a 301 redirect to `https://walkthru.earth/stac-opensensor/<tag>/`, the organization's own domain.
    Every `$id` keeps the `github.io` host, since validators follow the redirect.
-6. Run `npm run check-examples-live` once the pages are served.
+6. The same workflow then runs `npm run check-live-schemas` and `npm run check-examples-live`, retrying while the pages update.
+   The `Check Published Schemas` workflow repeats both every day for every released tag.
 
 A published version is never edited in place. A fix ships as a new version.
 

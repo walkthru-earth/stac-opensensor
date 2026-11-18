@@ -22,8 +22,9 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [fixtures/](fixtures) | Rows of each example file and each Thing's `owner.json`, the input of the rebuild |
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
 | [scripts/check-profile.mjs](scripts/check-profile.mjs) | Cross document checks and the broken cases that must fail |
+| [scripts/check-live-schemas.mjs](scripts/check-live-schemas.mjs) | Checks that each `$id` URL serves the bytes of its repo file |
 | [docs/](docs) | Decision register and the 2026-10-25 overlap review |
-| [.github/](.github) | `remark.yaml`, the test workflow on push and PR, the publish workflow on release |
+| [.github/](.github) | `remark.yaml`, the test workflow on push and PR, the publish workflow on release, the daily live check |
 
 ## Frozen release
 
@@ -123,6 +124,11 @@ Other scripts.
 
 - `npm run format-examples` rewrites the examples in the validator's format. Run it after editing an example and commit the diff.
 - `npm run check-examples-live` validates against the published schemas and only proves released versions.
+- `npm run check-live-schemas` fetches each schema `$id` and each registry under `<version>/registry/`,
+  follows at most one redirect on the `walkthru-earth.github.io` and `walkthru.earth` hosts,
+  and fails unless the answer is 200 with the repo file's bytes. `--root <dir>` checks another checkout, such as a tag.
+  On `main` it fails once a schema changes under the released `$id`, which is expected until the next release.
+  The publish workflow runs it after the deploy, and the `Check Published Schemas` workflow runs it daily for every tag.
 
 ## Before a PR
 
