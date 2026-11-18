@@ -58,6 +58,10 @@ const checkRegistry = (properties, scales) => {
     if (typeof entry.scale === 'string' && !scales.scales?.[entry.scale]) {
       errors.push(`${uri} points at scale ${entry.scale}, which registry/scales.json does not have`);
     }
+    // UCUM case sensitive codes are printable ASCII, ug/m3 and never µg/m³.
+    if (typeof entry.unit === 'string' && !/^[\x21-\x7e]+$/.test(entry.unit)) {
+      errors.push(`${uri} unit ${entry.unit} is not an ASCII UCUM code`);
+    }
   }
   return errors;
 };
@@ -965,6 +969,9 @@ const brokenRegistries = {
   },
   'a group outside the vocabulary': (properties) => {
     Object.values(properties.properties)[0].group = 'weather';
+  },
+  'a unit with a micro sign': (properties) => {
+    Object.values(properties.properties)[0].unit = 'µg/m³';
   },
 };
 for (const [what, mutate] of Object.entries(brokenRegistries)) {

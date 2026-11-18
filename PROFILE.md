@@ -290,9 +290,10 @@ A user's own overrides, such as a renamed card or a hidden column, stay in the a
 
 ### Property registry
 
-[registry/properties.json](registry/properties.json) holds one entry per `opensensor:property` URI that a bundled template uses.
-Each entry has a `label`, `short_label` and `definition` in English, with Arabic only where the term is checked,
-an optional `symbol`, the `group`, the UCUM `unit` the templates use, default `decimals` and a default `scale`.
+[registry/properties.json](registry/properties.json) holds one entry per `opensensor:property` URI that a bundled template uses,
+and entries for common measurements a new board may use, such as air pressure and NO2.
+Each entry has a `label`, `short_label` and `definition` in English. Every `short_label` and the main labels have Arabic.
+It also has an optional `symbol`, the `group`, the ASCII UCUM `unit` the templates use, default `decimals` and a default `scale`.
 [registry/scales.json](registry/scales.json) holds the shared scales by id.
 Both validate against [json-schema/registry.json](json-schema/registry.json).
 The [Publish JSON Schema](.github/workflows/publish.yaml) workflow serves them beside the schemas,

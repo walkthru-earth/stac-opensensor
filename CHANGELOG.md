@@ -31,9 +31,14 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
+- Property registry entries for air pressure (`hPa`) and nitrogen dioxide (`[ppb]`), with English and Arabic labels
+- Arabic for every `short_label` and for the particle count labels. The Arabic waits for a native speaker check
+- `check-profile` refuses a registry unit that is not printable ASCII, such as `µg/m³`
 
 ### Changed
 
+- WHO scale step labels read as the app shows them, such as "Within the WHO guideline", "Within WHO interim target 4"
+  and "Above every WHO target", in English and Arabic
 - Display hints are published. The rule that the app profile never goes into published STAC is gone.
   A user's own overrides still stay in the app
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
