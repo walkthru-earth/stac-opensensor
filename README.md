@@ -157,8 +157,9 @@ The [Thing profile](PROFILE.md#display-hints) fixes where hints come from and ho
 
 The [property registry](registry/properties.json) is a machine readable vocabulary keyed by `opensensor:property` URI,
 in the spirit of STAC Browser's [stac-fields](https://github.com/stac-utils/stac-fields).
-Each entry holds an English `label`, `short_label` and `definition`. Every `short_label` has Arabic, and so does the `label` of each measurement
-a card shows, such as temperature, PM2.5, CO2 and battery charge. Diagnostic and device labels stay English. The Arabic still waits
+Each entry holds an English `label` and `definition`, and may hold a `short_label`. Every `short_label` present has Arabic,
+and so does the `label` of each measurement a card shows, such as temperature, PM2.5, CO2 and battery charge.
+Diagnostic and device labels stay English. The Arabic still waits
 for a native speaker check. An entry also holds an optional `symbol`, the `group`, the ASCII UCUM `unit`, default `decimals`
 and an optional default `scale`. An entry without one has no default scale.
 A `scale` of `null` means no scale on purpose. WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected factory values,
