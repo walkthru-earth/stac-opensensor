@@ -22,6 +22,7 @@ import {
 } from 'h3-js';
 import {
   RESOLUTION, TOLERANCE, EXT, bboxOf, geometryOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
+  earliest, isLocated, microsOf, latestFile,
 } from './canonical.mjs';
 import * as shared from './checks.mjs';
 
@@ -128,19 +129,31 @@ const checkCollection = (file, doc) => {
   return errors;
 };
 
-// The canonical Collection from the template, the newest footer of the Thing, the owner config and the ledger.
+// The file of an Item for latestFile, its name, window start and end_datetime.
+const fileOf = (entry) => {
+  const [, item, fixture] = entry;
+  return {
+    name: item.id,
+    window: windowOf(microsOf(item.properties.start_datetime), fixture.footerDoc.file.rotation_interval_s).getTime(),
+    end: microsOf(item.properties.end_datetime),
+    entry,
+  };
+};
+const latestOf = (mine) => latestFile(mine.map(fileOf)).entry;
+
+// The canonical Collection from the template, the footer of the latest file, the owner config and the ledger.
 // The examples hold every uploaded Item, so the ledger is the union of their boxes and their earliest start.
+// The start is the earliest instant, so 13:00:00Z comes before 13:00:00.5Z although it sorts after it as text.
 const rebuildCollection = (doc, items) => {
   const owner = ownerOf(doc.id);
   const mine = items.filter(([, item]) => item.collection === doc.id);
   if (!owner || mine.length === 0) return ['no owner config or no Item in fixtures/ to rebuild the Collection from'];
-  const fixtures = mine.map(([, item]) => fixtureOf(doc.id, item.id)).filter(Boolean);
-  const footer = fixtures[fixtures.length - 1]?.footerDoc;
+  const footer = latestOf(mine)[2].footerDoc;
   const entry = templates.get(`1220${footer?.template?.sha256}`);
   if (!entry) return ['the footer names no template in templates/'];
   const boxes = mine.map(([, item]) => item.bbox);
   const ledger = {
-    start: mine.map(([, item]) => item.properties.start_datetime).sort()[0],
+    start: earliest(mine.map(([, item]) => item.properties.start_datetime)),
     bbox: [0, 1].map((k) => Math.min(...boxes.map((b) => b[k]))).concat([2, 3].map((k) => Math.max(...boxes.map((b) => b[k])))),
   };
   return differences(buildCollection({ template: entry.doc, footer, owner, ledger }), doc)
@@ -162,7 +175,7 @@ const checkItem = (file, doc, collection, footer) => {
   if (props['opensensor:mobility'] !== collection['opensensor:mobility']) {
     errors.push('opensensor:mobility differs from the Collection');
   }
-  // HHMM and the partition come from the rotation window that holds the first row, as the board writes them.
+  // HHMM and the partition come from the rotation window that holds the earliest row, as the board writes them.
   const start = new Date(props.start_datetime);
   const window = windowOf(start.getTime() * 1000, footer.file.rotation_interval_s);
   const partition = partitionOf(doc.collection, window);
@@ -280,7 +293,13 @@ for (const [file, doc] of collections.values()) {
 }
 
 // 5. Footers and geo keys
-const checkFooter = (doc) => {
+// Every footer names a template of its own. Only the footer of the latest file sets the Collection template link,
+// so an older footer may name an older template after a firmware update.
+const latestFooterOf = (thing) => {
+  const mine = items.filter(([, item]) => item.collection === thing);
+  return mine.length > 0 ? latestOf(mine)[2].footer : undefined;
+};
+const checkFooter = (doc, latest = true) => {
   const errors = schemaErrors(footerSchema, doc);
   const entry = templates.get(`1220${doc.template?.sha256}`);
   if (!entry) {
@@ -305,7 +324,8 @@ const checkFooter = (doc) => {
     if (collection['opensensor:mobility'] !== doc.thing.mobility) {
       errors.push('thing.mobility differs from the Collection');
     }
-    if (!describedby(collection, 'application/json').some((l) => l['file:checksum'] === `1220${doc.template?.sha256}`)) {
+    const link = describedby(collection, 'application/json').some((l) => l['file:checksum'] === `1220${doc.template?.sha256}`);
+    if (latest && !link) {
       errors.push('template.sha256 differs from the Collection template link');
     }
     if (collection['opensensor:sample_interval_s'] * 1000 !== doc.acquisition?.sample_interval_ms) {
@@ -318,11 +338,11 @@ const checkFooter = (doc) => {
   return errors;
 };
 
-// The GeoParquet 2.0.0 geo key. Its bbox is over the cell centres of the located rows.
+// The GeoParquet 2.0.0 geo key. Its bbox is over the cell centres of the located rows. A null or zero cell is not located.
 const checkGeo = (geo, rows) => {
   const errors = shared.geoKeyErrors(geo);
   const column = geo.columns?.geometry ?? {};
-  const centres = (rows.h3_cell_id ?? []).filter((c) => c !== null).map((c) => cellToLatLng(c));
+  const centres = (rows.h3_cell_id ?? []).filter(isLocated).map((c) => cellToLatLng(c));
   if (centres.length === 0) {
     if ('bbox' in column) errors.push('a file with no located row has a bbox');
     return errors;
@@ -340,7 +360,7 @@ const footerFiles = readdirSync('footers').filter((n) => n.endsWith('.json') && 
 for (const name of footerFiles) {
   const file = `footers/${name}`;
   const doc = read(file);
-  report(file, checkFooter(doc));
+  report(file, checkFooter(doc, latestFooterOf(doc.thing?.id) === file));
   const geoFile = file.replace(/\.json$/, '.geo.json');
   const fixture = items.map(([, , f]) => f).find((f) => f.footer === file);
   if (!existsSync(geoFile) || !fixture) {
@@ -450,13 +470,13 @@ for (const [mobility, cases] of Object.entries(brokenItems)) {
   }
 }
 
-// HHMM is the window start, not the first row. A board that boots at 13:07 still writes data_1300_.
+// HHMM is the window start, not the earliest row. A board that boots at 13:07 still writes data_1300_.
 {
   const [file, item, fixture] = itemOf('fixed');
   const late = structuredClone(item);
   late.properties.start_datetime = '2026-10-24T13:07:42.5Z';
   report(file, checkItem(file, late, collectionOf(file, item), fixture.footerDoc)
-    .map((e) => `a data_1300_ Item whose first row is 13:07:42 fails, ${e}`));
+    .map((e) => `a data_1300_ Item whose earliest row is 13:07:42 fails, ${e}`));
   const id = item.id.replace('data_1300_', 'data_1307_');
   const renamed = { ...late, id, assets: { data: { ...late.assets.data, href: `./${id}.parquet` } } };
   mustFail(file, 'a data_1307_ Item whose window starts at 13:00', checkItem(join(dirname(file), `${id}.json`), renamed,
@@ -505,11 +525,20 @@ const noItem = {
   'no located row': (f) => {
     f.rows.h3_cell_id = f.rows.h3_cell_id.map(() => null);
   },
+  'only zero cells': (f) => {
+    f.rows.h3_cell_id = f.rows.h3_cell_id.map(() => '000000000000000');
+  },
   'a row with no UTC time': (f) => {
     f.rows.event_time_utc_us[3] = null;
   },
   'an undated name': (f) => {
     f.file.name = 'unsynced_0001.parquet';
+  },
+  'a data_1315_ name for rows of the 13:00 window': (f) => {
+    f.file.name = f.file.name.replace('data_1300_', 'data_1315_');
+  },
+  'a rotation of 1200 s': (f) => {
+    f.footerDoc.file.rotation_interval_s = 1200;
   },
 };
 {
@@ -521,6 +550,38 @@ const noItem = {
     const built = buildItem({ file: f.file, rows: f.rows, footer: f.footerDoc, template: entry.doc });
     mustFail(file, `the rows of ${what}`, built.item ? [] : [built.none]);
   }
+  // A board that boots at 13:07 still writes data_1300_, and its rows still give an Item.
+  const late = structuredClone(fixture);
+  late.rows.event_time_utc_us = late.rows.event_time_utc_us.map((t) => t + 420e6);
+  const built = buildItem({ file: late.file, rows: late.rows, footer: late.footerDoc, template: entry.doc });
+  if (!built.item) report(file, [`data_1300_ rows that start at 13:07 give no Item, ${built.none}`]);
+}
+
+// The Collection takes its footer from the latest window start, then the latest end_datetime, then the greater name.
+{
+  const order = [
+    [{ name: 'b', window: 2, end: 1 }, { name: 'a', window: 1, end: 9 }],
+    [{ name: 'a', window: 1, end: 9 }, { name: 'b', window: 1, end: 8 }],
+    [{ name: 'b', window: 1, end: 8 }, { name: 'a', window: 1, end: 8 }],
+  ];
+  for (const pair of order) {
+    for (const files of [pair, [...pair].reverse()]) {
+      if (latestFile(files) !== pair[0]) report('scripts/canonical.mjs', [`latestFile does not pick ${pair[0].name}`]);
+    }
+  }
+}
+
+// An older footer may name an older template. Only the footer of the latest file must match the Collection link.
+{
+  const [, , fixture] = itemOf('fixed');
+  const older = read(fixture.footer);
+  const key = `1220${'a'.repeat(64)}`;
+  templates.set(key, templates.get(`1220${older.template.sha256}`));
+  older.template.sha256 = 'a'.repeat(64);
+  report(fixture.footer, checkFooter(older, false).map((e) => `an older footer with an older template fails, ${e}`));
+  mustFail(fixture.footer, 'a latest footer whose template is not the Collection link', checkFooter(older, true),
+    'Collection template link');
+  templates.delete(key);
 }
 
 const brokenCollections = {
@@ -551,6 +612,14 @@ for (const [file, collection] of collections.values()) {
   const shrunk = structuredClone(collection);
   shrunk.extent.temporal.interval[0][0] = '2026-10-24T14:00:00Z';
   mustFail(file, 'a Collection with a shrunk extent', rebuildCollection(shrunk, items), 'not the canonical Collection');
+  // A later Item in the same second. Its start sorts first as text, but the ledger compares instants.
+  const start = collection.extent.temporal.interval[0][0];
+  const first = items.find(([, item]) => item.collection === collection.id && item.properties.start_datetime === start);
+  if (first && /:[0-9]{2}Z$/.test(start)) {
+    const later = structuredClone(first);
+    later[1].properties.start_datetime = start.replace(/Z$/, '.5Z');
+    report(file, rebuildCollection(collection, [...items, later]).map((e) => `a same second ledger start, ${e}`));
+  }
 }
 
 const brokenFooters = {
@@ -597,6 +666,10 @@ for (const name of footerFiles) {
     mutate(geo);
     mustFail(geoFile, `a geo key with ${what}`, checkGeo(geo, fixture.rows));
   }
+  // A zero cell is not located, so the bbox stays over the other rows' cell centres.
+  const zero = structuredClone(fixture.rows);
+  zero.h3_cell_id[0] = '000000000000000';
+  report(geoFile, checkGeo(read(geoFile), zero).map((e) => `a zero cell moved the bbox, ${e}`));
   const partial = structuredClone(fixture);
   partial.rows.location_source[0] = 2;
   mustFail(fixture.path, 'a row with a partial location', checkRows(partial));

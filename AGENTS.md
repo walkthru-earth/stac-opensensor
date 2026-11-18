@@ -76,8 +76,8 @@ See [PROFILE.md](PROFILE.md#writers).
   The mobile app uses `com.uber:h3` 4.5.1 (h3-java) on the JVM and Android, and a vendored H3 C 4.5.0 on iOS.
 - Canonical geometry, `bbox` and Collection `extent.spatial` compare within 1e-9 degrees (`TOLERANCE` in `canonical.mjs`).
   Change the builder and the PROFILE Canonical form table together.
-- The window start is floor(first row seconds / `rotation_interval_s`) × `rotation_interval_s`.
-  File name `HHMM` is the UTC window start, not the first row time. A board that boots at 13:07 writes `data_1300_`.
+- The window start is floor(earliest row seconds / `rotation_interval_s`) × `rotation_interval_s`, from the smallest `event_time_utc_us`.
+  File name `HHMM` is the UTC window start, not the earliest row time. A board that boots at 13:07 writes `data_1300_`.
   The `year=/month=/day=` partition is the window's UTC date. The window is 600, 900, 1800 or 3600 s.
 - The File Item data `href` is relative, `./<file>.parquet`. Item links are relative too and `datetime` is `null`.
 - A fixed Item lists Grid and sets `grid:code`. A moving Item leaves Grid out and its geometry is the union of its cells.
