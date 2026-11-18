@@ -150,6 +150,7 @@ npm test
 That check validates every template, its setup manifest, its display hints and its properties against the registries.
 It also fails when a slug in `templates/`, `footers/` or `examples/` is missing from `registry/boards.json`,
 and when a registered `first_template.sha256` matches no template copy in `templates/`.
+`npm run check-remote` needs network. It fetches your `first_template.href` and fails unless its bytes hash to `first_template.sha256`.
 Run `npm run format-examples` if you changed a STAC example. It never touches `templates/`.
 
 ## 6. Open the pull request

@@ -24,6 +24,7 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
 | [scripts/check-profile.mjs](scripts/check-profile.mjs) | Cross document checks and the broken cases that must fail |
 | [scripts/check-live-schemas.mjs](scripts/check-live-schemas.mjs) | Checks that each `$id` URL serves the bytes of its repo file |
+| [scripts/check-remote.mjs](scripts/check-remote.mjs) | Networked check that each registered first template href serves its SHA-256 |
 | [docs/](docs) | Decision register and the 2026-10-25 overlap review |
 | [.github/](.github) | `remark.yaml`, the test workflow on push and PR, the publish workflow on release, the daily live check |
 
@@ -130,6 +131,8 @@ Other scripts.
   and fails unless the answer is 200 with the repo file's bytes. `--root <dir>` checks another checkout, such as a tag.
   On `main` it fails once a schema changes under the released `$id`, which is expected until the next release.
   The publish workflow runs it after the deploy, and the `Check Published Schemas` workflow runs it daily for every tag.
+- `npm run check-remote` fetches every `first_template.href` in `registry/boards.json` and compares its SHA-256.
+  It needs network, so it stays out of `npm test`. The test workflow runs it as its own step.
 
 ## Before a PR
 
