@@ -33,6 +33,7 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - `npm run validate` checks templates, footers, geo keys, Collections, Items and registries from outside this repository,
   one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
+- `opensensor:aggregate` gains `delta` for counters and `circular_mean` for angles, each with its roll-up rule, issue #7
 
 ### Changed
 

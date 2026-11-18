@@ -89,8 +89,10 @@ Used at the top of a Collection and in Item Properties.
 
 #### opensensor:aggregate
 
-Values are the CF `cell_methods` words `mean`, `minimum`, `maximum`, `sum`, `point` and `mode`.
+Values are the CF `cell_methods` words `mean`, `minimum`, `maximum`, `sum`, `point` and `mode`, plus `delta` and `circular_mean`.
 Use `point` for an instantaneous reading and `mode` for coded columns.
+Use `delta` for a counter stored as its change since the previous row, such as rain tips or a particle count.
+Use `circular_mean` for an angle, such as a wind or heading direction, whose mean is taken on the circle.
 This says how to roll values up. CF `cell_methods` says how stored values were made, which is a different question.
 
 #### opensensor:group

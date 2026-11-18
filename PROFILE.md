@@ -255,6 +255,18 @@ Every column has `name`, `type` and exactly one value in `roles`. The role decid
 | `referenceInformation` | Identity or bookkeeping | Nothing more |
 | `coordinate` | Time or position | Nothing more |
 
+`opensensor:aggregate` says how a derived product rolls a column up over a longer period.
+Two values are not CF `cell_methods` words and need their own rule.
+
+| Value | Meaning | Roll-up |
+| --- | --- | --- |
+| `delta` | A counter stored as its change since the previous row, never negative | Sum of the deltas. A reader never differences them again |
+| `circular_mean` | An angle in degrees, such as a wind direction | atan2(Σ sin, Σ cos) of the counted values, in [0, 360) |
+
+A `circular_mean` roll-up from window means instead of rows sums their unit vectors, each weighted by its counted rows.
+The Item core `statistics` `mean` stays the arithmetic mean of [Canonical form](#canonical-form),
+so a reader never rolls a `circular_mean` column up from it.
+
 ## Display hints
 
 Display hints tell a client how to show a column. They never change what a value means, so a reader that ignores them loses nothing.
