@@ -542,11 +542,14 @@ Setup is local. It lives in the template and on the device, never in a Collectio
 | keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
 
 A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
-The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`.
+The app catalog differs by place.
+Setup step ids are `name`, `location`, `mobility`, `site`, `wifi`, `pairing` and `lan`.
+Settings section ids are the same plus `bonds` and `sensor`, the sensor identity card in Device settings.
 A catalog step or section MAY omit `label`, since the app has its own title for it.
+`bonds` or `sensor` used as a setup step id is the board's own step, so it needs a `label`.
 A board's own step or section SHOULD carry `label`, and `label_i18n` for each language it supports.
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
-An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
+An id outside its catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
 
 | Key field | Type | Description |
