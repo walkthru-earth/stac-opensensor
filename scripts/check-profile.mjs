@@ -967,7 +967,8 @@ for (const [what, geometry] of [
   const ring = Array.from({ length: n }, (_, i) => [Math.cos((2 * Math.PI * i) / n), Math.sin((2 * Math.PI * i) / n)]);
   const doc = structuredClone(movingItem);
   doc.geometry = { type: 'Polygon', coordinates: [[...ring, ring[0]]] };
-  doc.bbox = bboxOf(doc.geometry);
+  // The ring is the unit circle. bboxOf would spread 100001 positions into Math.min.
+  doc.bbox = [-1, -1, 1, 1];
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
     input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 60000, maxBuffer: 1 << 26,
   });
