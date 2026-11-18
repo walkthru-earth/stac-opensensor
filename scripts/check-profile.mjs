@@ -920,6 +920,17 @@ for (const [what, cells] of Object.entries({
     report(movingFile, same.map((e) => `an end ${end} equal to the start ${start} fails, ${e}`));
   }
 }
+// The cell that holds a pole, and the cells round it, rebuild from a ring that goes round the pole.
+for (const lat of [90, -90]) {
+  const pole = latLngToCell(lat, 0, RESOLUTION);
+  for (const [what, cells] of [[`the cell ${pole} at ${lat}`, [pole]], [`the 7 cells round ${pole}`, gridDisk(pole, 1)]]) {
+    const doc = structuredClone(movingItem);
+    doc.geometry = geometryOf(cells);
+    doc.bbox = bboxOf(doc.geometry);
+    const union = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('union of resolution'));
+    report(movingFile, union.map((e) => `a moving Item of ${what} fails, ${e}`));
+  }
+}
 const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
 mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
 // Geometries that once made the cell check slow or ran it out of memory. Each must be rejected within 2 s.

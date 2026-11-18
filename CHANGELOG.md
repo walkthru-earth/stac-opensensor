@@ -35,6 +35,7 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   Collections and Items meet the extension schema as well as the profile.
   An Item geometry must be the union of at most 10000 resolution 8 cells with closed rings.
   The cells are rebuilt from the boundary, so a large or many position geometry fails fast.
+  The cell that holds a pole, and a union round it, pass as well.
   `--sha256` fails when no file is a template.
 - A Catalog child link href must be exactly `./thing=<uuid>/collection.json`, with the `./` and a lower case UUID.
   A catalog host that writes `thing=<uuid>/collection.json` without the `./` must change it, though both resolve to the same Collection

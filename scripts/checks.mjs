@@ -212,24 +212,44 @@ const wrap = (dLng) => (dLng > 180 ? dLng - 360 : dLng < -180 ? dLng + 360 : dLn
 const signedArea = (ring) => ring.slice(1).reduce((sum, b, i) => sum
   + wrap(b[0] - ring[i][0]) * RAD * (Math.sin(ring[i][1] * RAD) + Math.sin(b[1] * RAD)), 0);
 
-// The cells on each side of every boundary edge, found a few metres off the middle of the edge. Inside is on the
-// left of a counterclockwise outer ring and on the right of a counterclockwise hole.
+// The sum of the longitude steps of a ring. It is 0 for a ring that does not go round a pole, and 360 or -360 for
+// one that does, as H3 gives for the cell that holds a pole.
+const winding = (ring) => ring.slice(1).reduce((sum, b, i) => sum + wrap(b[0] - ring[i][0]), 0);
+
+// Whether the region a ring encloses is on its left. That region is the one away from the antimeridian, or the one
+// that holds the pole when the ring goes round a pole. Going east round the North Pole or west round the South
+// Pole puts the pole on the left.
+const enclosedOnLeft = (ring) => {
+  const turn = winding(ring);
+  if (Math.abs(turn) < 180) return signedArea(ring) < 0;
+  return (turn > 0) === (ring[0][1] > 0);
+};
+
+// A position as a point on the unit sphere, and back.
+const toVector = ([lng, lat]) => [
+  Math.cos(lat * RAD) * Math.cos(lng * RAD), Math.cos(lat * RAD) * Math.sin(lng * RAD), Math.sin(lat * RAD),
+];
+const toLatLng = ([x, y, z]) => [Math.atan2(z, Math.hypot(x, y)) / RAD, Math.atan2(y, x) / RAD];
+
+// The cells on each side of every boundary edge, found off the middle of the edge by 2 % of its length. An H3 edge is
+// an arc of a great circle, so the middle and the side are taken on the sphere, where they also hold near a pole.
+// Inside is the enclosed side of an outer ring and the other side of a hole.
 const sideCells = (polygons) => {
   const inside = new Set();
   const outside = new Set();
   for (const rings of polygons) {
     rings.forEach((ring, index) => {
-      const leftIsInside = (signedArea(ring) < 0) === (index === 0);
+      const leftIsInside = enclosedOnLeft(ring) === (index === 0);
       for (let i = 0; i < ring.length - 1; i += 1) {
-        const [lng, lat] = ring[i];
-        const cos = Math.max(Math.cos(lat * RAD), 1e-6);
-        const dx = wrap(ring[i + 1][0] - lng) * cos;
-        const dy = ring[i + 1][1] - lat;
-        if (dx === 0 && dy === 0) continue;
-        const midLng = lng + (dx / cos) / 2;
-        const midLat = lat + dy / 2;
-        const left = latLngToCell(midLat + dx * 0.02, midLng - (dy * 0.02) / cos, RESOLUTION);
-        const right = latLngToCell(midLat - dx * 0.02, midLng + (dy * 0.02) / cos, RESOLUTION);
+        if (ring[i][0] === ring[i + 1][0] && ring[i][1] === ring[i + 1][1]) continue;
+        const [ax, ay, az] = toVector(ring[i]);
+        const [bx, by, bz] = toVector(ring[i + 1]);
+        // The middle of the edge, and the normal of its great circle, which points to the left of the edge.
+        const mid = [ax + bx, ay + by, az + bz];
+        const size = Math.hypot(...mid);
+        const normal = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+        const side = (sign) => latLngToCell(...toLatLng(mid.map((m, k) => m / size + sign * 0.02 * normal[k])), RESOLUTION);
+        const [left, right] = [side(1), side(-1)];
         inside.add(leftIsInside ? left : right);
         outside.add(leftIsInside ? right : left);
       }
