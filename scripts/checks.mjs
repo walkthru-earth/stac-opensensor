@@ -119,7 +119,10 @@ export const checkTemplate = (doc, { registry, scaleRegistry }) => {
   const schema = schemaErrors(schemas.template, doc);
   if (schema.length > 0) return schema;
   const errors = [...hintErrors(doc, scaleRegistry), ...registryErrors(doc, registry), ...manifestErrors(doc.firmware)];
-  const dictLink = doc.links?.find((l) => l.rel === 'describedby' && l.type === 'text/plain');
+  if (doc.links?.some((l) => l === null || typeof l !== 'object' || Array.isArray(l))) {
+    errors.push('links holds an entry that is not a link object');
+  }
+  const dictLink = doc.links?.find((l) => l?.rel === 'describedby' && l.type === 'text/plain');
   if (dictLink?.['file:checksum'] !== `1220${doc.firmware?.dict}`) {
     errors.push('describedby file:checksum does not match firmware.dict');
   }
@@ -159,6 +162,15 @@ export const columnErrors = (doc) => {
   return errors;
 };
 
+// A GeoJSON Polygon or MultiPolygon whose rings are closed-length arrays of numeric positions. The schema checks
+// the type but not the nesting, and the cell checks below read every position.
+const isPosition = (p) => Array.isArray(p) && p.length >= 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n));
+const isPolygon = (rings) => Array.isArray(rings) && rings.length > 0
+  && rings.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(isPosition));
+const wellFormed = (geometry) => (geometry?.type === 'Polygon' && isPolygon(geometry.coordinates))
+  || (geometry?.type === 'MultiPolygon' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0
+    && geometry.coordinates.every(isPolygon));
+
 const ringsOf = (geometry) => {
   if (geometry?.type === 'Polygon') return [geometry.coordinates];
   if (geometry?.type === 'MultiPolygon') return geometry.coordinates;
@@ -184,6 +196,7 @@ const tooLargeForItsBoundary = (polygons) => polygons.some((rings) => {
 // The geometry of a File Item is cellsToMultiPolygon of its distinct resolution 8 cells in ascending order,
 // so every writer gets the same JSON. A fixed Item is the one polygon of its grid:code.
 export const geometryErrors = (doc) => {
+  if (!wellFormed(doc.geometry)) return ['geometry is not a Polygon or MultiPolygon of closed rings of positions'];
   const errors = [];
   const polygons = ringsOf(doc.geometry);
   const cells = tooLargeForItsBoundary(polygons)
@@ -193,7 +206,9 @@ export const geometryErrors = (doc) => {
     errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
   }
   const code = doc.properties?.['grid:code'];
-  if (code !== undefined) {
+  if (code !== undefined && typeof code !== 'string') {
+    errors.push('grid:code is not a string');
+  } else if (code !== undefined) {
     const cell = code.replace(/^H3-/, '');
     if (!isValidCell(cell) || getResolution(cell) !== RESOLUTION) {
       errors.push(`grid:code ${code} is not a resolution ${RESOLUTION} H3 cell`);

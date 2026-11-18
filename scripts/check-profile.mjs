@@ -905,6 +905,10 @@ for (const [what, kind, mutate] of [
   ['Collection with table:columns as an object', 'Collection', (doc) => { doc.item_assets.data['table:columns'] = {}; }],
   ['template with links as an object', 'OpenSensorTemplate', (doc) => { doc.links = {}; }],
   ['Item with a null geometry', 'Feature', (doc) => { doc.geometry = null; }],
+  ['Item with a Polygon without coordinates', 'Feature', (doc) => { doc.geometry = { type: 'Polygon' }; }],
+  ['Item with a MultiPolygon of bare numbers', 'Feature', (doc) => { doc.geometry = { type: 'MultiPolygon', coordinates: [1, 2] }; }],
+  ['Item with a numeric grid:code', 'Feature', (doc) => { doc.properties['grid:code'] = 8; }],
+  ['template with a null link first', 'OpenSensorTemplate', (doc) => { doc.links.unshift(null); }],
 ]) {
   const [file, source] = [...docs, ...[...templates.values()].map((t) => [t.file, read(t.file)])]
     .find(([, doc]) => doc.type === kind);
