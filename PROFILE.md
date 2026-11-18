@@ -537,10 +537,14 @@ Setup is local. It lives in the template and on the device, never in a Collectio
 | --- | --- | --- |
 | id | string | **REQUIRED**. Lower case letters, digits and `_`. An app catalog step or the board's own id |
 | req | boolean | True when setup cannot finish without the step. Default false |
+| label | string | Plain title in the default language, shown as the wizard page title or the Device settings card title |
+| label_i18n | Map\<string, string> | Language code to title, the same shape as `opensensor:title_i18n` |
 | keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
 
 A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
-The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan` and `bonds`.
+The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`.
+A catalog step or section MAY omit `label`, since the app has its own title for it.
+A board's own step or section SHOULD carry `label`, and `label_i18n` for each language it supports.
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
 An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
@@ -566,9 +570,9 @@ The app keeps its own safety floors, such as confirming every `action` and requi
   "setup": [
     {"id": "location", "req": true},
     {"id": "wifi"},
-    {"id": "panel", "keys": ["panel.theme"]}
+    {"id": "panel", "label": "Display", "label_i18n": {"ar": "الشاشة"}, "keys": ["panel.theme"]}
   ],
-  "settings": [{"id": "panel", "keys": ["panel.theme", "panel.refresh_s"]}],
+  "settings": [{"id": "panel", "label": "Display", "keys": ["panel.theme", "panel.refresh_s"]}],
   "config_keys": {
     "panel.theme": {"type": "enum", "values": ["light", "dark"], "applies": "immediately", "page": 7, "label": "Theme"},
     "panel.refresh_s": {"type": "integer", "values": {"min": 60, "max": 3600}, "applies": "next sample", "page": 7, "label": "Refresh"}

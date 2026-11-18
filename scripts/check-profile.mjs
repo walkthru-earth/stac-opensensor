@@ -724,13 +724,17 @@ const CROWPANEL_MANIFEST = {
     { id: 'name', req: false },
     { id: 'location', req: true },
     { id: 'wifi', req: false },
-    { id: 'panel', req: false, keys: ['panel.theme', 'panel.start_page'] },
+    {
+      id: 'panel', req: false, label: 'Display', label_i18n: { ar: 'الشاشة' }, keys: ['panel.theme', 'panel.start_page'],
+    },
   ],
   settings: [
     { id: 'location' },
     { id: 'wifi' },
-    { id: 'panel', keys: ['panel.theme', 'panel.refresh_s', 'panel.start_page', 'panel.label'] },
-    { id: 'air', keys: ['sen6x.co2_asc', 'sen6x.fan_clean'] },
+    { id: 'panel', label: 'Display', keys: ['panel.theme', 'panel.refresh_s', 'panel.start_page', 'panel.label'] },
+    {
+      id: 'air', label: 'Air sensor', label_i18n: { ar: 'مستشعر الهواء' }, keys: ['sen6x.co2_asc', 'sen6x.fan_clean'],
+    },
   ],
   config_keys: {
     'panel.theme': {
@@ -883,6 +887,15 @@ const brokenTemplates = {
   },
   'a null setup step': (doc) => {
     doc.firmware.setup.push(null);
+  },
+  'a setup step with a label that is not a string': (doc) => {
+    doc.firmware.setup[3].label = 7;
+  },
+  'a settings section with an empty label': (doc) => {
+    doc.firmware.settings[3].label = '';
+  },
+  'a step label translation keyed by an upper case tag': (doc) => {
+    doc.firmware.setup[3].label_i18n = { AR: 'x' };
   },
   'a text key longer than 64 bytes': (doc) => {
     doc.firmware.config_keys['panel.label'].values = { min: 0, max: 65 };
