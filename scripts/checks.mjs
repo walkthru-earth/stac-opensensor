@@ -295,8 +295,10 @@ const before = (a, b) => {
   const [ma, mb] = [Date.parse(a), Date.parse(b)];
   if (Number.isNaN(ma) || Number.isNaN(mb)) return false;
   if (ma !== mb) return ma < mb;
-  const below = (value) => (/T\d{2}:\d{2}:\d{2}\.(\d+)/.exec(value)?.[1] ?? '').slice(3).padEnd(9, '0');
-  return below(a) < below(b);
+  const below = (value) => (/[Tt]\d{2}:\d{2}:\d{2}\.(\d+)/.exec(value)?.[1] ?? '').slice(3);
+  const [fa, fb] = [below(a), below(b)];
+  const width = Math.max(fa.length, fb.length);
+  return fa.padEnd(width, '0') < fb.padEnd(width, '0');
 };
 
 // A File Item on its own. Its id is its file name and its data sits beside it.

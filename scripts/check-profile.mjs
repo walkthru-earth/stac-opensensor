@@ -12,7 +12,8 @@
 // 6. Every board slug in templates/, footers/ and examples/ is in registry/boards.json.
 // 7. scripts/validate.mjs passes every document of this repository on its own.
 // 8. Broken documents must fail, so the checks above cannot pass by accident.
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, mkdtempSync, copyFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, basename } from 'node:path';
 import {
@@ -903,9 +904,21 @@ for (const [what, cells] of Object.entries({
   doc.properties.end_datetime = '2026-10-24T13:00:00.412304Z';
   mustFail(movingFile, 'validate.mjs with an end a microsecond before the start',
     shared.validateDocument(movingFile, doc, regs).errors, 'end_datetime is before start_datetime');
-  doc.properties.end_datetime = '2026-10-24T13:00:00.4123050Z';
-  const same = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('before start_datetime'));
-  report(movingFile, same.map((e) => `an end equal to the start fails, ${e}`));
+  doc.properties.start_datetime = '2026-10-24t13:00:00.412305z';
+  doc.properties.end_datetime = '2026-10-24t13:00:00.412304z';
+  mustFail(movingFile, 'validate.mjs with an end a microsecond before the start, with a lowercase t',
+    shared.validateDocument(movingFile, doc, regs).errors, 'end_datetime is before start_datetime');
+  // The same instant written three ways passes, whatever the case of the t and the number of trailing zeros.
+  for (const [start, end] of [
+    ['2026-10-24T13:00:00.412305Z', '2026-10-24T13:00:00.4123050Z'],
+    ['2026-10-24T13:00:00.412305Z', '2026-10-24t13:00:00.412305Z'],
+    ['2026-10-24T13:00:00.4123050000000Z', '2026-10-24T13:00:00.412305Z'],
+  ]) {
+    doc.properties.start_datetime = start;
+    doc.properties.end_datetime = end;
+    const same = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('before start_datetime'));
+    report(movingFile, same.map((e) => `an end ${end} equal to the start ${start} fails, ${e}`));
+  }
 }
 const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
 mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
@@ -1022,6 +1035,10 @@ for (const [what, kind, mutate, expect] of [
     // 36 lowercase hex digits without hyphens, the length of a UUID but not its form.
     doc.links.find((l) => l.rel === 'child').href = `./thing=${'0123456789abcdef'.repeat(3).slice(0, 36)}/collection.json`;
   }],
+  ['Catalog with a child link without ./', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = link.href.replace(/^\.\//, '');
+  }, 'is not ./thing=<uuid>/collection.json'],
   ['Catalog with a child UUID in capitals', 'Catalog', (doc) => {
     const link = doc.links.find((l) => l.rel === 'child');
     link.href = link.href.toUpperCase().replace('./THING=', './thing=').replace('/COLLECTION.JSON', '/collection.json');
@@ -1082,6 +1099,17 @@ for (const [what, kind, mutate, expect] of [
     'no file is a template');
   const footerPlain = run(footerFile);
   if (footerPlain.status !== 0) report(footerFile, [`validate.mjs rejected a footer, ${footerPlain.stdout}`]);
+  // A relative argument resolves against INIT_CWD, not the directory the command runs in.
+  const elsewhere = mkdtempSync(join(tmpdir(), 'validate-'));
+  try {
+    copyFileSync(catalogFile, join(elsewhere, 'sample.json'));
+    const moved = spawnSync(process.execPath, ['scripts/validate.mjs', './sample.json'], {
+      encoding: 'utf8', env: { ...process.env, INIT_CWD: elsewhere },
+    });
+    if (moved.status !== 0) report(catalogFile, [`validate.mjs did not read ./sample.json from INIT_CWD, ${moved.stdout}${moved.stderr}`]);
+  } finally {
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
 }
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;
