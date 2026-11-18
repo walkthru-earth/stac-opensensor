@@ -270,7 +270,8 @@ npm run --silent validate -- --json path/to/collection.json path/to/item.json > 
 with it. `--json` prints a report for CI, and `--silent` keeps npm's banner out of it.
 From another directory run `npm --prefix /path/to/checkout run validate -- ./sample.json`, and `./sample.json` is read
 from that directory.
-The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error.
+The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error. It is also 1 when `--sha256`
+is given and no file is a template, since no digest was compared. A footer that passes without `--sha256` exits 0.
 Checks that join documents, such as an Item against its Collection, and STAC core validation stay in `npm test`
 and `stac-node-validator`.
 

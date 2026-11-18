@@ -810,6 +810,12 @@ for (const [what, mutate] of Object.entries(brokenTemplates)) {
   mutate(doc);
   mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
 }
+{
+  // An inherited member of the scales map is not a scale the template holds.
+  const doc = structuredClone(hinted.doc);
+  columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:scale'] = 'constructor';
+  mustFail(hinted.file, 'a template with a column scale named constructor', checkTemplate(doc), 'missing scale constructor');
+}
 for (const [file, collection] of collections.values()) {
   const primary = structuredClone(collection);
   primary['opensensor:primary'] = 'pm3_mass_ug_m3';
@@ -830,6 +836,12 @@ for (const [what, mutate] of Object.entries(brokenRegistries)) {
   const doc = structuredClone(registry);
   mutate(doc);
   mustFail('registry/properties.json', `a registry with ${what}`, checkRegistry(doc, scaleRegistry));
+}
+{
+  const doc = structuredClone(registry);
+  Object.values(doc.properties)[0].scale = 'constructor';
+  mustFail('registry/properties.json', 'a registry with a default scale named constructor', checkRegistry(doc, scaleRegistry),
+    'scale constructor, which registry/scales.json does not have');
 }
 const brokenBoards = {
   'a template folder it does not list': (doc, uses) => uses.push(['templates/acme-probe/x.json', 'acme-probe']),
@@ -884,6 +896,17 @@ for (const [what, cells] of Object.entries({
   mustFail(movingFile, `validate.mjs with a moving Item built from ${what}`,
     shared.validateDocument(movingFile, doc, regs).errors, `union of resolution ${RESOLUTION}`);
 }
+{
+  // An end a microsecond before the start, in the same millisecond, fails. The same instant passes this check.
+  const doc = structuredClone(movingItem);
+  doc.properties.start_datetime = '2026-10-24T13:00:00.412305Z';
+  doc.properties.end_datetime = '2026-10-24T13:00:00.412304Z';
+  mustFail(movingFile, 'validate.mjs with an end a microsecond before the start',
+    shared.validateDocument(movingFile, doc, regs).errors, 'end_datetime is before start_datetime');
+  doc.properties.end_datetime = '2026-10-24T13:00:00.4123050Z';
+  const same = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('before start_datetime'));
+  report(movingFile, same.map((e) => `an end equal to the start fails, ${e}`));
+}
 const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
 mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
 // Geometries that once made the cell check slow or ran it out of memory. Each must be rejected within 2 s.
@@ -917,12 +940,13 @@ for (const [what, geometry] of [
   [`a union of ${gridDisk(latLngToCell(30, 31, RESOLUTION), 60).length} cells, more than MAX_CELLS`, disk(60)],
 ]) {
   // Each case runs in its own process, so one that stalls or runs out of memory is killed and reported, and the
-  // next case still runs. The child times the check itself, so its start up does not count against the 2 s.
+  // next case still runs. The child times the check itself, so its start up does not count against the 2 s, and
+  // the 60 s kill only catches a stall on a busy machine.
   const doc = structuredClone(movingItem);
   doc.geometry = geometry;
   doc.bbox = bboxOf(geometry);
   const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
-    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 10000, maxBuffer: 1 << 24,
+    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 60000, maxBuffer: 1 << 24,
   });
   let out;
   try {
@@ -935,6 +959,29 @@ for (const [what, geometry] of [
   } else {
     mustFail(movingFile, `validate.mjs with ${what}`, out.errors, `union of resolution ${RESOLUTION}`);
     if (out.ms > 2000) report(movingFile, [`${what} took ${out.ms} ms to reject, more than 2 s`]);
+  }
+}
+{
+  // A closed ring of more positions than MAX_POSITIONS is refused before any cell is computed.
+  const n = 100000;
+  const ring = Array.from({ length: n }, (_, i) => [Math.cos((2 * Math.PI * i) / n), Math.sin((2 * Math.PI * i) / n)]);
+  const doc = structuredClone(movingItem);
+  doc.geometry = { type: 'Polygon', coordinates: [[...ring, ring[0]]] };
+  doc.bbox = bboxOf(doc.geometry);
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
+    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 60000, maxBuffer: 1 << 26,
+  });
+  let out;
+  try {
+    out = child.status === 0 ? JSON.parse(child.stdout) : undefined;
+  } catch {
+    out = undefined;
+  }
+  if (out === undefined) {
+    report(movingFile, [`validate.mjs with a ring of ${n + 1} positions did not finish, ${child.error?.message ?? child.signal ?? child.stderr}`]);
+  } else {
+    mustFail(movingFile, `validate.mjs with a ring of ${n + 1} positions`, out.errors, 'positions, so it is not a union');
+    if (out.ms > 2000) report(movingFile, [`a ring of ${n + 1} positions took ${out.ms} ms to reject, more than 2 s`]);
   }
 }
 {
@@ -952,7 +999,7 @@ for (const [what, geometry] of [
   mustFail(catalogFile, 'validate.mjs with a Catalog whose root is not itself', shared.validateDocument(catalogFile, doc, regs).errors,
     'root link is not ./catalog.json');
 }
-for (const [what, kind, mutate] of [
+for (const [what, kind, mutate, expect] of [
   ['Collection with table:columns as an object', 'Collection', (doc) => { doc.item_assets.data['table:columns'] = {}; }],
   ['template with links as an object', 'OpenSensorTemplate', (doc) => { doc.links = {}; }],
   ['Item with a null geometry', 'Feature', (doc) => { doc.geometry = null; }],
@@ -962,14 +1009,17 @@ for (const [what, kind, mutate] of [
   ['template with a null link first', 'OpenSensorTemplate', (doc) => { doc.links.unshift(null); }],
   ['Collection with a sample interval of 0', 'Collection', (doc) => { doc['opensensor:sample_interval_s'] = 0; }],
   ['Collection with derived.from as an object', 'Collection', (doc) => {
-    doc.item_assets.data['table:columns'][0]['opensensor:derived'] = { from: {} };
-  }],
+    doc.item_assets.data['table:columns'][0]['opensensor:derived'] = {
+      from: {}, method: 'urn:walkthru-earth:method:airgradient_20260408_count_candidate_v1',
+    };
+  }, '/from'],
   ['Catalog with a child href in an array', 'Catalog', (doc) => {
     const link = doc.links.find((l) => l.rel === 'child');
     link.href = [link.href];
   }],
   ['Catalog with a child that is not a UUID', 'Catalog', (doc) => {
-    doc.links.find((l) => l.rel === 'child').href = './thing=not-a-uuid-not-a-uuid-not-a-uuid-not/collection.json';
+    // 36 lowercase hex digits without hyphens, the length of a UUID but not its form.
+    doc.links.find((l) => l.rel === 'child').href = `./thing=${'0123456789abcdef'.repeat(3).slice(0, 36)}/collection.json`;
   }],
   ['Catalog with a child UUID in capitals', 'Catalog', (doc) => {
     const link = doc.links.find((l) => l.rel === 'child');
@@ -987,7 +1037,7 @@ for (const [what, kind, mutate] of [
     errors = [];
     report(file, [`validate.mjs threw on a ${what}, ${e.message}`]);
   }
-  mustFail(file, `validate.mjs with a ${what}`, errors);
+  mustFail(file, `validate.mjs with a ${what}`, errors, expect);
 }
 {
   // A coordinate column may leave out its property, so the registry is not asked for one.
@@ -1007,7 +1057,10 @@ for (const [what, kind, mutate] of [
   // The command line. A wrong or missing digest fails, and a digest in capitals still matches.
   const { file } = [...templates.values()][0];
   const digest = sha256(file);
-  const run = (...args) => spawnSync(process.execPath, ['scripts/validate.mjs', ...args], { encoding: 'utf8' });
+  // validate.mjs resolves its arguments against INIT_CWD, which npm sets, so pin it to this directory.
+  const run = (...args) => spawnSync(process.execPath, ['scripts/validate.mjs', ...args], {
+    encoding: 'utf8', env: { ...process.env, INIT_CWD: process.cwd() },
+  });
   const wrong = run('--sha256', '0'.repeat(64), file);
   mustFail(file, 'validate.mjs with a wrong --sha256', wrong.status === 1 ? [wrong.stdout] : [],
     'SHA-256 of the bytes is');

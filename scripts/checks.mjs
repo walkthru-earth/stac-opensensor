@@ -289,6 +289,16 @@ export const geometryErrors = (doc) => {
   return errors;
 };
 
+// Whether datetime a is before datetime b. Date.parse keeps milliseconds, so the digits after them, the
+// microseconds and below, break a tie.
+const before = (a, b) => {
+  const [ma, mb] = [Date.parse(a), Date.parse(b)];
+  if (Number.isNaN(ma) || Number.isNaN(mb)) return false;
+  if (ma !== mb) return ma < mb;
+  const below = (value) => (/T\d{2}:\d{2}:\d{2}\.(\d+)/.exec(value)?.[1] ?? '').slice(3).padEnd(9, '0');
+  return below(a) < below(b);
+};
+
 // A File Item on its own. Its id is its file name and its data sits beside it.
 export const itemErrors = (file, doc) => {
   const schema = [...schemaErrors(schemas.profile, doc), ...schemaErrors(schemas.extension, doc)];
@@ -301,7 +311,7 @@ export const itemErrors = (file, doc) => {
   if (doc.assets?.data?.href !== `./${doc.id}.parquet`) {
     errors.push(`data href is not ./${doc.id}.parquet`);
   }
-  if (new Date(doc.properties?.end_datetime) < new Date(doc.properties?.start_datetime)) {
+  if (before(doc.properties?.end_datetime, doc.properties?.start_datetime)) {
     errors.push('end_datetime is before start_datetime');
   }
   return errors;
