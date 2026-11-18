@@ -24,6 +24,7 @@ export const schemas = {
   template: ajv.getSchema(`${base}template.json`),
   footer: ajv.getSchema(`${base}footer.json`),
   registry: ajv.getSchema(`${base}registry.json`),
+  extension: ajv.getSchema(`${base}schema.json`),
   boardRegistry: ajv.getSchema(`${base}registry.json#/definitions/boardRegistry`),
 };
 export const schemaErrors = (validate, doc) => (validate(doc) ? [] : [ajv.errorsText(validate.errors)]);
@@ -35,6 +36,9 @@ export const loadRegistries = () => ({
   boards: readRepo('registry/boards.json'),
 });
 
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+// Only ids a map declares itself count, so constructor or toString never name a scale.
+const declares = (map, id) => isObject(map) && typeof id === 'string' && Object.hasOwn(map, id);
 const same = (a, b) => differences(a, b).length === 0;
 const close = (a, b) => differences(a, b, '', true).length === 0;
 export const columnsOf = (doc) => doc.item_assets?.data?.['table:columns'] ?? [];
@@ -43,7 +47,7 @@ export const columnsOf = (doc) => doc.item_assets?.data?.['table:columns'] ?? []
 export const checkRegistry = (properties, scales) => {
   const errors = [...schemaErrors(schemas.registry, properties), ...schemaErrors(schemas.registry, scales)];
   for (const [uri, entry] of Object.entries(properties.properties ?? {})) {
-    if (typeof entry.scale === 'string' && !scales.scales?.[entry.scale]) {
+    if (typeof entry.scale === 'string' && !declares(scales.scales, entry.scale)) {
       errors.push(`${uri} points at scale ${entry.scale}, which registry/scales.json does not have`);
     }
   }
@@ -52,7 +56,7 @@ export const checkRegistry = (properties, scales) => {
 
 // A scale id names one scale everywhere. A document that reuses a registry id must carry the same scale.
 export const scaleErrors = (scales, scaleRegistry) => Object.entries(scales ?? {})
-  .filter(([id, scale]) => scaleRegistry.scales[id] && !same(scale, scaleRegistry.scales[id]))
+  .filter(([id, scale]) => declares(scaleRegistry.scales, id) && !same(scale, scaleRegistry.scales[id]))
   .map(([id]) => `scale ${id} differs from registry/scales.json`);
 
 // Display hints in the template or the Collection. primary and scale must name what the document holds.
@@ -65,7 +69,7 @@ export const hintErrors = (doc, scaleRegistry) => {
   }
   for (const column of columns) {
     const scale = column['opensensor:scale'];
-    if (scale !== undefined && !doc['opensensor:scales']?.[scale]) {
+    if (scale !== undefined && !declares(doc['opensensor:scales'], scale)) {
       errors.push(`column ${column.name} points at missing scale ${scale}`);
     }
     if ('classification:bitfields' in column && column.unit !== '{bitmask}') {
@@ -75,10 +79,12 @@ export const hintErrors = (doc, scaleRegistry) => {
   return [...errors, ...scaleErrors(doc['opensensor:scales'], scaleRegistry)];
 };
 
-// Every column property is in the registry, with the same unit.
+// Every column property is in the registry, with the same unit. A column whose role makes the property optional,
+// such as the geometry coordinate, may leave it out. The schema requires it for a physical measurement.
 export const registryErrors = (doc, registry) => {
   const errors = [];
   for (const column of columnsOf(doc)) {
+    if (!('opensensor:property' in column)) continue;
     const entry = registry.properties[column['opensensor:property']];
     if (!entry) {
       errors.push(`column ${column.name} property ${column['opensensor:property']} is not in registry/properties.json`);
@@ -91,7 +97,6 @@ export const registryErrors = (doc, registry) => {
 
 // The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
 // Shapes the schema rejects are skipped here, so their schema errors still reach the report.
-const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 export const manifestErrors = (firmware) => {
   const errors = [];
   const keys = isObject(firmware?.config_keys) ? firmware.config_keys : {};
@@ -258,8 +263,11 @@ const cellsOf = (polygons) => {
 // so every writer gets the same JSON. A fixed Item is the one polygon of its grid:code.
 export const geometryErrors = (doc) => {
   if (!wellFormed(doc.geometry)) return ['geometry is not a Polygon or MultiPolygon of closed rings of positions'];
-  const errors = [];
   const polygons = ringsOf(doc.geometry);
+  if (polygons.flat(2).length > MAX_POSITIONS) {
+    return [`geometry has more than ${MAX_POSITIONS} positions, so it is not a union of at most ${MAX_CELLS} cells`];
+  }
+  const errors = [];
   const cells = cellsOf(polygons);
   if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), polygons)) {
     errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
@@ -283,7 +291,7 @@ export const geometryErrors = (doc) => {
 
 // A File Item on its own. Its id is its file name and its data sits beside it.
 export const itemErrors = (file, doc) => {
-  const schema = schemaErrors(schemas.profile, doc);
+  const schema = [...schemaErrors(schemas.profile, doc), ...schemaErrors(schemas.extension, doc)];
   if (schema.length > 0) return schema;
   const errors = geometryErrors(doc);
   const stem = basename(file, '.json');
@@ -338,8 +346,11 @@ export const catalogErrors = (doc) => {
   if (!links.some((l) => l?.rel === 'root' && l.href === './catalog.json')) {
     errors.push('root link is not ./catalog.json');
   }
+  const childPath = /^\.\/thing=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/collection\.json$/;
   for (const link of links.filter((l) => l?.rel === 'child')) {
-    if (!/^\.\/thing=[0-9a-f-]{36}\/collection\.json$/.test(link.href)) {
+    if (typeof link.href !== 'string') {
+      errors.push('a child link href is not a string');
+    } else if (!childPath.test(link.href)) {
       errors.push(`child link ${link.href} is not ./thing=<uuid>/collection.json`);
     }
   }
@@ -357,7 +368,7 @@ export const validateDocument = (file, doc, regs) => {
     registry: () => afterSchema(schemaErrors(schemas.registry, doc), () => (doc.type === 'OpenSensorPropertyRegistry'
       ? checkRegistry(doc, regs.scaleRegistry) : [])),
     'board registry': () => schemaErrors(schemas.boardRegistry, doc),
-    collection: () => afterSchema(schemaErrors(schemas.profile, doc), () => [...hintErrors(doc, regs.scaleRegistry),
+    collection: () => afterSchema([...schemaErrors(schemas.profile, doc), ...schemaErrors(schemas.extension, doc)], () => [...hintErrors(doc, regs.scaleRegistry),
       ...columnErrors(doc), ...registryErrors(doc, regs.registry)]),
     item: () => itemErrors(file, doc),
     catalog: () => catalogErrors(doc),

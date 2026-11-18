@@ -5,7 +5,8 @@
 // It finds the kind of each file from its content. Templates, footers, geo keys, Collections, Items, Catalogs and the
 // registries are known. Run stac-node-validator too for STAC core and the other extensions.
 // A relative path is read from the directory npm was started in, so npm --prefix <checkout> works from anywhere.
-// --sha256 compares the bytes of each template with the digest the device or the footer names.
+// --sha256 compares the bytes of each template with the digest the device or the footer names. It fails when no
+// file is a template, so a footer passed by mistake cannot pass for a digest check.
 // The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -74,4 +75,6 @@ if (json) {
     for (const e of errors) console.log(`  ${e}`);
   }
 }
-process.exitCode = results.some((r) => r.errors.length > 0) ? 1 : 0;
+const noTemplate = digest !== undefined && !results.some((r) => r.kind === 'template');
+if (noTemplate) console.error('--sha256 was given but no file is a template, so no digest was compared');
+process.exitCode = noTemplate || results.some((r) => r.errors.length > 0) ? 1 : 0;

@@ -136,7 +136,7 @@ Other scripts.
 - `npm run check-remote` fetches every `first_template.href` in `registry/boards.json` and compares its SHA-256.
   It fetches from board hosts, so it runs apart from `npm test`. The test workflow runs it as its own step.
 - `npm run validate -- <file>...` checks templates, footers, geo keys, Collections, Items, Catalogs and registries.
-  From outside the checkout run `npm --prefix /path/to/checkout run validate -- <file>...`, and relative paths
+  From outside the checkout run `npm --prefix /path/to/checkout run validate -- ./sample.json`, and relative paths
   resolve against the directory you ran it from.
   A new single document rule goes in `scripts/checks.mjs`, so `check-profile` and the validator share it.
 

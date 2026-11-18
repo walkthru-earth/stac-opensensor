@@ -900,6 +900,15 @@ const zigzag = (n) => {
   const down = Array.from({ length: n + 1 }, (_, i) => [(2 * (n - i)) / n + 0.004, (2 * (n - i)) / n]);
   return [...up, ...down, up[0]];
 };
+const geometryChild = `
+import { readFileSync } from 'node:fs';
+import { loadRegistries, validateDocument } from ${JSON.stringify(new URL('./checks.mjs', import.meta.url).href)};
+const { file, doc } = JSON.parse(readFileSync(0, 'utf8'));
+const regs = loadRegistries();
+const started = Date.now();
+const { errors } = validateDocument(file, doc, regs);
+console.log(JSON.stringify({ errors, ms: Date.now() - started }));
+`;
 const disk = (k) => geometryOf(gridDisk(latLngToCell(30, 31, RESOLUTION), k));
 for (const [what, geometry] of [
   ['a region-size rectangle', { type: 'Polygon', coordinates: [[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]] }],
@@ -907,13 +916,26 @@ for (const [what, geometry] of [
   ['a thin zigzag of 40003 positions', { type: 'Polygon', coordinates: [zigzag(20000)] }],
   [`a union of ${gridDisk(latLngToCell(30, 31, RESOLUTION), 60).length} cells, more than MAX_CELLS`, disk(60)],
 ]) {
+  // Each case runs in its own process, so one that stalls or runs out of memory is killed and reported, and the
+  // next case still runs. The child times the check itself, so its start up does not count against the 2 s.
   const doc = structuredClone(movingItem);
   doc.geometry = geometry;
   doc.bbox = bboxOf(geometry);
-  const started = Date.now();
-  const { errors } = shared.validateDocument(movingFile, doc, regs);
-  mustFail(movingFile, `validate.mjs with ${what}`, errors, `union of resolution ${RESOLUTION}`);
-  if (Date.now() - started > 2000) report(movingFile, [`${what} took more than 2 s to reject`]);
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
+    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 10000, maxBuffer: 1 << 24,
+  });
+  let out;
+  try {
+    out = child.status === 0 ? JSON.parse(child.stdout) : undefined;
+  } catch {
+    out = undefined;
+  }
+  if (out === undefined) {
+    report(movingFile, [`validate.mjs with ${what} did not finish, ${child.error?.message ?? child.signal ?? child.stderr}`]);
+  } else {
+    mustFail(movingFile, `validate.mjs with ${what}`, out.errors, `union of resolution ${RESOLUTION}`);
+    if (out.ms > 2000) report(movingFile, [`${what} took ${out.ms} ms to reject, more than 2 s`]);
+  }
 }
 {
   // A ring whose last position is not its first.
@@ -938,6 +960,21 @@ for (const [what, kind, mutate] of [
   ['Item with a MultiPolygon of bare numbers', 'Feature', (doc) => { doc.geometry = { type: 'MultiPolygon', coordinates: [1, 2] }; }],
   ['Item with a numeric grid:code', 'Feature', (doc) => { doc.properties['grid:code'] = 8; }],
   ['template with a null link first', 'OpenSensorTemplate', (doc) => { doc.links.unshift(null); }],
+  ['Collection with a sample interval of 0', 'Collection', (doc) => { doc['opensensor:sample_interval_s'] = 0; }],
+  ['Collection with derived.from as an object', 'Collection', (doc) => {
+    doc.item_assets.data['table:columns'][0]['opensensor:derived'] = { from: {} };
+  }],
+  ['Catalog with a child href in an array', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = [link.href];
+  }],
+  ['Catalog with a child that is not a UUID', 'Catalog', (doc) => {
+    doc.links.find((l) => l.rel === 'child').href = './thing=not-a-uuid-not-a-uuid-not-a-uuid-not/collection.json';
+  }],
+  ['Catalog with a child UUID in capitals', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = link.href.toUpperCase().replace('./THING=', './thing=').replace('/COLLECTION.JSON', '/collection.json');
+  }],
 ]) {
   const [file, source] = [...docs, ...[...templates.values()].map((t) => [t.file, read(t.file)])]
     .find(([, doc]) => doc.type === kind);
@@ -951,6 +988,13 @@ for (const [what, kind, mutate] of [
     report(file, [`validate.mjs threw on a ${what}, ${e.message}`]);
   }
   mustFail(file, `validate.mjs with a ${what}`, errors);
+}
+{
+  // A coordinate column may leave out its property, so the registry is not asked for one.
+  const [file, source] = [...docs].find(([, doc]) => doc.type === 'Collection');
+  const doc = structuredClone(source);
+  for (const column of shared.columnsOf(doc).filter((c) => c.roles?.includes('coordinate'))) delete column['opensensor:property'];
+  report(file, shared.validateDocument(file, doc, regs).errors.map((e) => `with a coordinate column without a property, ${e}`));
 }
 {
   // The dictionary link is the text/plain describedby link, wherever it sits.
@@ -973,9 +1017,17 @@ for (const [what, kind, mutate] of [
   if (upper.status !== 0) report(file, [`validate.mjs rejected the digest in capitals, ${upper.stdout}${upper.stderr}`]);
   const unchecked = run('--json', catalogFile, 'x-missing.json');
   const results = unchecked.status === 1 ? JSON.parse(unchecked.stdout) : [];
-  if (results.length !== 2 || results[0].errors.length > 0) {
+  const [first, second] = results;
+  if (results.length !== 2 || first.file !== catalogFile || first.kind !== 'catalog' || first.errors.length > 0
+    || second.file !== 'x-missing.json' || second.kind !== 'unreadable' || !/ENOENT/.test(second.errors.join())) {
     report(catalogFile, [`validate.mjs did not report each file, ${unchecked.stdout}${unchecked.stderr}`]);
   }
+  const footerFile = `footers/${footerFiles[0]}`;
+  const footerOnly = run('--sha256', digest, footerFile);
+  mustFail(footerFile, 'validate.mjs with --sha256 and only a footer', footerOnly.status === 1 ? [footerOnly.stderr] : [],
+    'no file is a template');
+  const footerPlain = run(footerFile);
+  if (footerPlain.status !== 0) report(footerFile, [`validate.mjs rejected a footer, ${footerPlain.stdout}`]);
 }
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;

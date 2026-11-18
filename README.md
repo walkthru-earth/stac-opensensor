@@ -258,7 +258,8 @@ such as an Item against its Collection. Run `stac-node-validator` too for STAC c
 It knows templates, footers, GeoParquet `geo` keys, Collections, Items, Catalogs and the registries by their content.
 For a Catalog it checks its root link and the form of its child links, not that each child exists.
 An Item geometry must be the union of at most 10000 resolution 8 cells, every position a cell corner.
-One file covers at most one hour, so that is more than one fix per second for the whole file.
+That cap comes from a writer rule in [PROFILE.md](PROFILE.md), one file covers at most one hour, so 10000 cells is
+more than one fix per second for the whole file. `npm run validate` does not check the hour.
 
 ```bash
 npm run validate -- --sha256 "$TEMPLATE_SHA256" path/to/template.json
@@ -267,7 +268,8 @@ npm run --silent validate -- --json path/to/collection.json path/to/item.json > 
 
 `TEMPLATE_SHA256` is the 64 hex digest the device or the footer names, and `--sha256` compares the template's bytes
 with it. `--json` prints a report for CI, and `--silent` keeps npm's banner out of it.
-From another directory run `npm --prefix /path/to/checkout run validate -- <file>...`.
+From another directory run `npm --prefix /path/to/checkout run validate -- ./sample.json`, and `./sample.json` is read
+from that directory.
 The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error.
 Checks that join documents, such as an Item against its Collection, and STAC core validation stay in `npm test`
 and `stac-node-validator`.
