@@ -1,4 +1,4 @@
-// Networked registry check, kept out of npm test so that stays offline.
+// Networked registry check. It hits board hosts that can be slow or move, so it runs apart from npm test.
 // It fetches every registered first_template.href, hashes the bytes and compares them to first_template.sha256.
 // Broken cases run first against a stubbed fetch, so the rule cannot pass by accident.
 import { readFileSync } from 'node:fs';

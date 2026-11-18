@@ -132,7 +132,7 @@ Other scripts.
   On `main` it fails once a schema changes under the released `$id`, which is expected until the next release.
   The publish workflow runs it after the deploy, and the `Check Published Schemas` workflow runs it daily for every tag.
 - `npm run check-remote` fetches every `first_template.href` in `registry/boards.json` and compares its SHA-256.
-  It needs network, so it stays out of `npm test`. The test workflow runs it as its own step.
+  It fetches from board hosts, so it runs apart from `npm test`. The test workflow runs it as its own step.
 
 ## Before a PR
 
