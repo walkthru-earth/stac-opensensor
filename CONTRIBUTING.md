@@ -40,7 +40,7 @@ A slug names one board model. It is the folder of its templates, the footer `thi
 ```
 
 `home` is where your templates are published. `first_template.href` is an immutable link that ends in `/<slug>/<64 hex>.json`,
-and its bytes hash to `first_template.sha256`.
+and its bytes hash to `first_template.sha256`. A `raw.githubusercontent.com` link names a full 40 hex commit, never a branch.
 A slug is never renamed and never reused, even after a board is retired.
 A new firmware build keeps the slug and ships a new template. A different board gets a new slug.
 
@@ -79,8 +79,9 @@ Each column carries these fields. The example is the CrowPanel PM2.5 column.
 - `opensensor:property` says what is measured, never which board or sensor measured it. That goes in `opensensor:procedure`.
 - `opensensor:field_id` counts from 1 in dictionary order. New columns go at the end and an id is never reused.
 - A status code column lists its codes in `classification:classes`. A bit mask column lists its bits in `classification:bitfields`.
-- Display hints are optional. `title`, `opensensor:title_i18n`, `opensensor:decimals`, `opensensor:group` and `opensensor:primary`
+- Display hints are optional. The column hints `title`, `opensensor:title_i18n`, `opensensor:decimals` and `opensensor:group`
   change how a value is shown, never what it means. A column without them falls back to the property registry.
+- `opensensor:primary` sits on the template, not on a column. It names the main metric column.
 
 Template bytes are minified with no final newline. Never reformat a template, or its digest moves.
 
@@ -147,7 +148,8 @@ npm test
 
 `npm test` checks the Markdown, validates the examples and runs `scripts/check-profile.mjs`.
 That check validates every template, its setup manifest, its display hints and its properties against the registries.
-It also fails when a slug in `templates/`, `footers/` or `examples/` is missing from `registry/boards.json`.
+It also fails when a slug in `templates/`, `footers/` or `examples/` is missing from `registry/boards.json`,
+and when a registered `first_template.sha256` matches no template copy in `templates/`.
 Run `npm run format-examples` if you changed a STAC example. It never touches `templates/`.
 
 ## 6. Open the pull request

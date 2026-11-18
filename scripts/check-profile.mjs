@@ -131,6 +131,8 @@ const manifestErrors = (firmware) => {
 const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc),
   ...manifestErrors(doc.firmware)];
 const templates = new Map();
+// Every template file with its folder, kept apart from the digest-keyed map, so identical copies all count.
+const templateFolders = [];
 for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
   const doc = read(file);
@@ -144,6 +146,7 @@ for (const name of readdirSync('templates', { recursive: true }).filter((n) => n
   }
   report(file, errors);
   templates.set(`1220${sha256(file)}`, { file, doc, board: name.split('/')[0] });
+  templateFolders.push([file, name.split('/')[0]]);
 }
 
 // Shared helpers
@@ -500,7 +503,7 @@ for (const name of footerFiles) {
 const boards = read('registry/boards.json');
 const slugOfHref = (href) => href.match(/\/([a-z0-9]+(?:-[a-z0-9]+)*)\/[0-9a-f]{64}\.json$/)?.[1];
 const slugUses = [
-  ...[...templates.values()].map((t) => [t.file, t.board]),
+  ...templateFolders,
   ...footerFiles.flatMap((name) => [[`footers/${name}`, name.replace(/\.json$/, '')],
     [`footers/${name} thing.board`, read(`footers/${name}`).thing?.board]]),
   ...[...collections.values()].flatMap(([file, doc]) => describedby(doc, 'application/json')
@@ -510,11 +513,13 @@ const slugErrors = (registryDoc, uses) => {
   const errors = [...schemaErrors(registrySchema, registryDoc), ...schemaErrors(boardRegistrySchema, registryDoc)];
   const known = registryDoc.boards ?? {};
   for (const [where, slug] of uses) {
-    if (!known[slug]) errors.push(`${where} uses board ${slug}, which registry/boards.json does not list`);
+    if (!Object.hasOwn(known, slug)) errors.push(`${where} uses board ${slug}, which registry/boards.json does not list`);
   }
   for (const [slug, entry] of Object.entries(known)) {
     const template = templates.get(`1220${entry.first_template?.sha256}`);
-    if (template && template.board !== slug) {
+    if (!template) {
+      errors.push(`${slug} first template sha256 matches no template copy in templates/`);
+    } else if (template.board !== slug) {
       errors.push(`${slug} first template is ${template.file}, under another board`);
     }
     if (entry.first_template && slugOfHref(entry.first_template.href) !== slug) {
@@ -988,6 +993,17 @@ const brokenBoards = {
   'a first template that is not a SHA-256': (doc) => {
     doc.boards['m5stack-cores3'].first_template.sha256 = 'cores3';
   },
+  'a first template with no copy in templates/': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.sha256 = '0'.repeat(64);
+  },
+  'a first template on a GitHub branch': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/');
+  },
+  'a slug with no model': (doc) => {
+    doc.boards.acme = doc.boards['m5stack-cores3'];
+  },
+  'a template folder named after an Object member': (doc, uses) => uses.push(['templates/constructor/x.json', 'constructor']),
 };
 for (const [what, mutate] of Object.entries(brokenBoards)) {
   const doc = structuredClone(boards);
