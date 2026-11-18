@@ -22,7 +22,7 @@ import {
 } from 'h3-js';
 import {
   RESOLUTION, TOLERANCE, EXT, bboxOf, geometryOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
-  earliest, isLocated,
+  earliest, isLocated, microsOf, latestFile,
 } from './canonical.mjs';
 import * as shared from './checks.mjs';
 
@@ -129,15 +129,26 @@ const checkCollection = (file, doc) => {
   return errors;
 };
 
-// The canonical Collection from the template, the newest footer of the Thing, the owner config and the ledger.
+// The file of an Item for latestFile, its name, window start and end_datetime.
+const fileOf = (entry) => {
+  const [, item, fixture] = entry;
+  return {
+    name: item.id,
+    window: windowOf(microsOf(item.properties.start_datetime), fixture.footerDoc.file.rotation_interval_s).getTime(),
+    end: microsOf(item.properties.end_datetime),
+    entry,
+  };
+};
+const latestOf = (mine) => latestFile(mine.map(fileOf)).entry;
+
+// The canonical Collection from the template, the footer of the latest file, the owner config and the ledger.
 // The examples hold every uploaded Item, so the ledger is the union of their boxes and their earliest start.
 // The start is the earliest instant, so 13:00:00Z comes before 13:00:00.5Z although it sorts after it as text.
 const rebuildCollection = (doc, items) => {
   const owner = ownerOf(doc.id);
   const mine = items.filter(([, item]) => item.collection === doc.id);
   if (!owner || mine.length === 0) return ['no owner config or no Item in fixtures/ to rebuild the Collection from'];
-  const fixtures = mine.map(([, item]) => fixtureOf(doc.id, item.id)).filter(Boolean);
-  const footer = fixtures[fixtures.length - 1]?.footerDoc;
+  const footer = latestOf(mine)[2].footerDoc;
   const entry = templates.get(`1220${footer?.template?.sha256}`);
   if (!entry) return ['the footer names no template in templates/'];
   const boxes = mine.map(([, item]) => item.bbox);
@@ -282,7 +293,13 @@ for (const [file, doc] of collections.values()) {
 }
 
 // 5. Footers and geo keys
-const checkFooter = (doc) => {
+// Every footer names a template of its own. Only the footer of the latest file sets the Collection template link,
+// so an older footer may name an older template after a firmware update.
+const latestFooterOf = (thing) => {
+  const mine = items.filter(([, item]) => item.collection === thing);
+  return mine.length > 0 ? latestOf(mine)[2].footer : undefined;
+};
+const checkFooter = (doc, latest = true) => {
   const errors = schemaErrors(footerSchema, doc);
   const entry = templates.get(`1220${doc.template?.sha256}`);
   if (!entry) {
@@ -307,7 +324,8 @@ const checkFooter = (doc) => {
     if (collection['opensensor:mobility'] !== doc.thing.mobility) {
       errors.push('thing.mobility differs from the Collection');
     }
-    if (!describedby(collection, 'application/json').some((l) => l['file:checksum'] === `1220${doc.template?.sha256}`)) {
+    const link = describedby(collection, 'application/json').some((l) => l['file:checksum'] === `1220${doc.template?.sha256}`);
+    if (latest && !link) {
       errors.push('template.sha256 differs from the Collection template link');
     }
     if (collection['opensensor:sample_interval_s'] * 1000 !== doc.acquisition?.sample_interval_ms) {
@@ -342,7 +360,7 @@ const footerFiles = readdirSync('footers').filter((n) => n.endsWith('.json') && 
 for (const name of footerFiles) {
   const file = `footers/${name}`;
   const doc = read(file);
-  report(file, checkFooter(doc));
+  report(file, checkFooter(doc, latestFooterOf(doc.thing?.id) === file));
   const geoFile = file.replace(/\.json$/, '.geo.json');
   const fixture = items.map(([, , f]) => f).find((f) => f.footer === file);
   if (!existsSync(geoFile) || !fixture) {
@@ -516,6 +534,12 @@ const noItem = {
   'an undated name': (f) => {
     f.file.name = 'unsynced_0001.parquet';
   },
+  'a data_1315_ name for rows of the 13:00 window': (f) => {
+    f.file.name = f.file.name.replace('data_1300_', 'data_1315_');
+  },
+  'a rotation of 1200 s': (f) => {
+    f.footerDoc.file.rotation_interval_s = 1200;
+  },
 };
 {
   const [file, , fixture] = itemOf('fixed');
@@ -526,6 +550,38 @@ const noItem = {
     const built = buildItem({ file: f.file, rows: f.rows, footer: f.footerDoc, template: entry.doc });
     mustFail(file, `the rows of ${what}`, built.item ? [] : [built.none]);
   }
+  // A board that boots at 13:07 still writes data_1300_, and its rows still give an Item.
+  const late = structuredClone(fixture);
+  late.rows.event_time_utc_us = late.rows.event_time_utc_us.map((t) => t + 420e6);
+  const built = buildItem({ file: late.file, rows: late.rows, footer: late.footerDoc, template: entry.doc });
+  if (!built.item) report(file, [`data_1300_ rows that start at 13:07 give no Item, ${built.none}`]);
+}
+
+// The Collection takes its footer from the latest window start, then the latest end_datetime, then the greater name.
+{
+  const order = [
+    [{ name: 'b', window: 2, end: 1 }, { name: 'a', window: 1, end: 9 }],
+    [{ name: 'a', window: 1, end: 9 }, { name: 'b', window: 1, end: 8 }],
+    [{ name: 'b', window: 1, end: 8 }, { name: 'a', window: 1, end: 8 }],
+  ];
+  for (const pair of order) {
+    for (const files of [pair, [...pair].reverse()]) {
+      if (latestFile(files) !== pair[0]) report('scripts/canonical.mjs', [`latestFile does not pick ${pair[0].name}`]);
+    }
+  }
+}
+
+// An older footer may name an older template. Only the footer of the latest file must match the Collection link.
+{
+  const [, , fixture] = itemOf('fixed');
+  const older = read(fixture.footer);
+  const key = `1220${'a'.repeat(64)}`;
+  templates.set(key, templates.get(`1220${older.template.sha256}`));
+  older.template.sha256 = 'a'.repeat(64);
+  report(fixture.footer, checkFooter(older, false).map((e) => `an older footer with an older template fails, ${e}`));
+  mustFail(fixture.footer, 'a latest footer whose template is not the Collection link', checkFooter(older, true),
+    'Collection template link');
+  templates.delete(key);
 }
 
 const brokenCollections = {

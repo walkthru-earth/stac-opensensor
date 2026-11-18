@@ -60,7 +60,12 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   - Rounding rounds each operation on its own, with no fused multiply add
   - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
   - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
-  - The Collection takes its footer from the file with the latest window start
+  - The Collection takes its footer from the file with the latest window start. Two files in one window are ordered
+    by the latest `end_datetime`, then by the greater file name in byte order
+  - `check-profile` compares only that footer with the Collection template link, so an older footer may name an older template
+  - The Item `start_datetime` and `end_datetime` rule names the smallest and largest `event_time_utc_us`, as the Canonical form does
+  - `buildItem` returns no Item when the file name HHMM is not the window of the earliest row,
+    or the footer rotation is not 600, 900, 1800 or 3600
   - The `geo` bbox check skips zero cells too, as the Item rules already did
   - An indexer takes the owner fields from the published Collection, since the owner config is not published
   - The no-Item list names a file outside its rotation window and a footer with no allowed window

@@ -168,10 +168,13 @@ The board fills the Thing Collection from four sources.
 | Source | Fields |
 | --- | --- |
 | Template | `item_assets.data` columns with their display hints, `table:primary_datetime`, `table:primary_geometry`, `keywords`, `instruments`, `opensensor:sample_interval_s`, `opensensor:primary`, `opensensor:scales`, the dictionary link |
-| Footer of the file with the latest window start | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
+| Footer of the latest file | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
 | Upload ledger | `extent`, the union of uploaded Item boxes and the earliest uploaded `start_datetime` |
 | Owner config | `title`, `description`, `providers`, contacts, the bucket and prefix in `partition:glob`, column display hints, `opensensor:primary`, `opensensor:scales` |
 
+The latest file is the one with the latest window start. A reboot or a firmware update can leave two files in one window,
+and their footers can name different templates. Then the one with the latest `end_datetime` wins,
+then the greater file name in byte order, so the board and an indexer take the same footer.
 The owner sets the owner config at setup, and the board stores it. Everything else is fixed by this profile.
 A board never shrinks `extent`. It keeps the ledger summary, the first start time and the union box, in NVS,
 so an SD card swap or a lost ledger file does not reset it.
@@ -356,7 +359,7 @@ and is found only by listing the partition.
 | Geometry is never a device position, a cell centre or a track | MUST |
 | `bbox` is the bounding box of the geometry | MUST |
 | `anon:size` is `0.01` and `anon:warning` is the text below | MUST |
-| `start_datetime` and `end_datetime` are the first and last row times, `datetime` is `null` | MUST |
+| `start_datetime` and `end_datetime` are the smallest and largest `event_time_utc_us`, `datetime` is `null` | MUST |
 | `assets.data` is the Parquet file with role `data` and `table:row_count` | MUST |
 | `assets.data` `href` is relative, `./<file>.parquet` | MUST |
 | `root`, `parent` and `collection` links are relative | MUST |
