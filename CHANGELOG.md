@@ -27,6 +27,10 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - An optional `label` and `label_i18n` on each setup step and settings section, the page or card title.
   A board's own step or section should carry one, and an app catalog id may omit it
 - `opensensor:title_i18n` and `opensensor:description_i18n` on `classification:classes` entries and on bit fields and their classes
+- Board registry `registry/boards.json` with every board slug, its vendor, model, template home and first template.
+  `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
+  `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
+- `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
 
 ### Changed
 

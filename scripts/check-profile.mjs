@@ -9,7 +9,8 @@
 // 4. Every Item validates, sits in the partition and HHMM of its rotation window, has a geometry made of
 //    resolution 8 H3 cells, and equals the canonical Item rebuilt from its rows in fixtures/.
 // 5. Footers and their GeoParquet geo keys validate and agree with their template, Collection and rows.
-// 6. Broken documents must fail, so the checks above cannot pass by accident.
+// 6. Every board slug in templates/, footers/ and examples/ is in registry/boards.json.
+// 7. Broken documents must fail, so the checks above cannot pass by accident.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join, basename } from 'node:path';
@@ -35,6 +36,7 @@ const profile = ajv.getSchema(`${base}profile.json`);
 const templateSchema = ajv.getSchema(`${base}template.json`);
 const footerSchema = ajv.getSchema(`${base}footer.json`);
 const registrySchema = ajv.getSchema(`${base}registry.json`);
+const boardRegistrySchema = ajv.getSchema(`${base}registry.json#/definitions/boardRegistry`);
 const schemaErrors = (validate, doc) => (validate(doc) ? [] : [ajv.errorsText(validate.errors)]);
 
 let failures = 0;
@@ -129,6 +131,8 @@ const manifestErrors = (firmware) => {
 const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc),
   ...manifestErrors(doc.firmware)];
 const templates = new Map();
+// Every template file with its folder, kept apart from the digest-keyed map, so identical copies all count.
+const templateFolders = [];
 for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
   const doc = read(file);
@@ -142,6 +146,7 @@ for (const name of readdirSync('templates', { recursive: true }).filter((n) => n
   }
   report(file, errors);
   templates.set(`1220${sha256(file)}`, { file, doc, board: name.split('/')[0] });
+  templateFolders.push([file, name.split('/')[0]]);
 }
 
 // Shared helpers
@@ -494,7 +499,38 @@ for (const name of footerFiles) {
   }
 }
 
-// 6. Broken documents must fail
+// 6. Board slugs. Every slug in use is registered, and a registered first template sits under its own slug.
+const boards = read('registry/boards.json');
+const slugOfHref = (href) => href.match(/\/([a-z0-9]+(?:-[a-z0-9]+)*)\/[0-9a-f]{64}\.json$/)?.[1];
+const slugUses = [
+  ...templateFolders,
+  ...footerFiles.flatMap((name) => [[`footers/${name}`, name.replace(/\.json$/, '')],
+    [`footers/${name} thing.board`, read(`footers/${name}`).thing?.board]]),
+  ...[...collections.values()].flatMap(([file, doc]) => describedby(doc, 'application/json')
+    .map((l) => [`${file} template link`, slugOfHref(l.href)])),
+];
+const slugErrors = (registryDoc, uses) => {
+  const errors = [...schemaErrors(registrySchema, registryDoc), ...schemaErrors(boardRegistrySchema, registryDoc)];
+  const known = registryDoc.boards ?? {};
+  for (const [where, slug] of uses) {
+    if (!Object.hasOwn(known, slug)) errors.push(`${where} uses board ${slug}, which registry/boards.json does not list`);
+  }
+  for (const [slug, entry] of Object.entries(known)) {
+    const template = templates.get(`1220${entry.first_template?.sha256}`);
+    if (!template) {
+      errors.push(`${slug} first template sha256 matches no template copy in templates/`);
+    } else if (template.board !== slug) {
+      errors.push(`${slug} first template is ${template.file}, under another board`);
+    }
+    if (entry.first_template && slugOfHref(entry.first_template.href) !== slug) {
+      errors.push(`${slug} first template href does not end in /${slug}/<sha256>.json`);
+    }
+  }
+  return errors;
+};
+report('registry/boards.json', slugErrors(boards, slugUses));
+
+// 7. Broken documents must fail
 let rejected = 0;
 const mustFail = (file, what, errors, expect) => {
   const hit = expect ? errors.some((e) => e.includes(expect)) : errors.length > 0;
@@ -935,6 +971,45 @@ for (const [what, mutate] of Object.entries(brokenRegistries)) {
   const doc = structuredClone(registry);
   mutate(doc);
   mustFail('registry/properties.json', `a registry with ${what}`, checkRegistry(doc, scaleRegistry));
+}
+const brokenBoards = {
+  'a template folder it does not list': (doc, uses) => uses.push(['templates/acme-probe/x.json', 'acme-probe']),
+  'a footer board it does not list': (doc, uses) => uses.push(['footers/x.json thing.board', 'cores3']),
+  'a slug with an upper case letter': (doc) => {
+    doc.boards['M5stack-cores3'] = doc.boards['m5stack-cores3'];
+  },
+  'a slug with an underscore': (doc) => {
+    doc.boards.acme_probe = doc.boards['m5stack-cores3'];
+  },
+  'an entry with no home': (doc) => {
+    delete doc.boards['m5stack-cores3'].home;
+  },
+  'a home that is not https': (doc) => {
+    doc.boards['m5stack-cores3'].home = 'http://example.com/templates/m5stack-cores3';
+  },
+  'a first template of another board': (doc) => {
+    doc.boards['m5stack-cores3'].first_template = doc.boards['waveshare-esp32-s3-sim7670g'].first_template;
+  },
+  'a first template that is not a SHA-256': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.sha256 = 'cores3';
+  },
+  'a first template with no copy in templates/': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.sha256 = '0'.repeat(64);
+  },
+  'a first template on a GitHub branch': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/');
+  },
+  'a slug with no model': (doc) => {
+    doc.boards.acme = doc.boards['m5stack-cores3'];
+  },
+  'a template folder named after an Object member': (doc, uses) => uses.push(['templates/constructor/x.json', 'constructor']),
+};
+for (const [what, mutate] of Object.entries(brokenBoards)) {
+  const doc = structuredClone(boards);
+  const uses = [...slugUses];
+  mutate(doc, uses);
+  mustFail('registry/boards.json', `a board registry with ${what}`, slugErrors(doc, uses));
 }
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;

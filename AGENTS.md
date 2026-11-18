@@ -15,7 +15,8 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [PROFILE.md](PROFILE.md) | The Thing profile, layout, Writers, Canonical form, footer and board template |
 | [CHANGELOG.md](CHANGELOG.md) | Keep a Changelog, with an `Unreleased` section on top |
 | [json-schema/](json-schema) | `schema.json`, `profile.json`, `template.json`, `footer.json` and `registry.json`, published to Pages on release |
-| [registry/](registry) | Property registry keyed by `opensensor:property` and shared scales, published beside the schemas under `registry/` |
+| [registry/](registry) | Property registry keyed by `opensensor:property`, shared scales and the board slug registry, published beside the schemas under `registry/` |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Step by step guide for adding a board or a sensor |
 | [examples/](examples) | Root Catalog, two fixed and one moving Thing Collection, one File Item each |
 | [templates/](templates) | Example copies of the three real board templates, `templates/<board>/<firmware.dict>.json` |
 | [footers/](footers) | The `opensensor` Parquet footer and the GeoParquet `geo` key of each example file |
@@ -23,6 +24,7 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
 | [scripts/check-profile.mjs](scripts/check-profile.mjs) | Cross document checks and the broken cases that must fail |
 | [scripts/check-live-schemas.mjs](scripts/check-live-schemas.mjs) | Checks that each `$id` URL serves the bytes of its repo file |
+| [scripts/check-remote.mjs](scripts/check-remote.mjs) | Networked check that each registered first template href serves its SHA-256 |
 | [docs/](docs) | Decision register and the 2026-10-25 overlap review |
 | [.github/](.github) | `remark.yaml`, the test workflow on push and PR, the publish workflow on release, the daily live check |
 
@@ -38,7 +40,7 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 - A version bump moves all of these together.
   - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),
     `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/check-profile.mjs](scripts/check-profile.mjs),
-    the examples' `stac_extensions`, the `$schema` of both files in `registry/`,
+    the examples' `stac_extensions`, the `$schema` of every file in `registry/`,
     the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
   - Bare strings. `version` in `package.json`, the PROFILE Version row and "now 0.1.0" under Versioning, the footer
     `version` in `footers/` and `template_version` in `templates/`. The firmware generator sets `template_version`,
@@ -129,6 +131,8 @@ Other scripts.
   and fails unless the answer is 200 with the repo file's bytes. `--root <dir>` checks another checkout, such as a tag.
   On `main` it fails once a schema changes under the released `$id`, which is expected until the next release.
   The publish workflow runs it after the deploy, and the `Check Published Schemas` workflow runs it daily for every tag.
+- `npm run check-remote` fetches every `first_template.href` in `registry/boards.json` and compares its SHA-256.
+  It fetches from board hosts, so it runs apart from `npm test`. The test workflow runs it as its own step.
 
 ## Before a PR
 
