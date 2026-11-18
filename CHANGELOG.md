@@ -27,6 +27,10 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - An optional `label` and `label_i18n` on each setup step and settings section, the page or card title.
   A board's own step or section should carry one, and an app catalog id may omit it
 - `opensensor:title_i18n` and `opensensor:description_i18n` on `classification:classes` entries and on bit fields and their classes
+- `npm run canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
+  and `npm run canonical -- compare` lists where two documents differ
+- `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.
+  `npm test` rebuilds each one
 
 ### Changed
 

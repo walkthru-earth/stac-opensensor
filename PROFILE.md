@@ -176,6 +176,15 @@ Equal means the same JSON value. Key order and white space do not matter, array 
 Numbers compare as IEEE 754 doubles, so any printing that reads back to the same double is fine, such as C `%.17g`.
 Geometry coordinates, `bbox` and the Collection `extent.spatial` compare within 1e-9 degrees.
 [scripts/canonical.mjs](scripts/canonical.mjs) is the reference builder, and `npm run check-profile` rebuilds every example from its rows.
+`npm run canonical -- item <file.parquet>` reads a data file, finds its template in `templates/` by the footer `template.sha256`
+and prints the canonical File Item. `--template <file.json>` or `--templates <dir>` names another template.
+`--expect <item.json>` prints the differences instead, and `npm run canonical -- compare <a.json> <b.json>` compares two documents.
+The command exits 0 when equal, 1 on a difference, 2 when it cannot read its input and 3 when the file gets no Item.
+[fixtures/golden/](fixtures/golden) holds one Parquet data file per board with the board's column types,
+its `opensensor` and `geo` keys, and its expected Item beside it as `<file>.json`. `npm test` rebuilds each one.
+[scripts/make-golden.mjs](scripts/make-golden.mjs) writes them from `fixtures/`, uncompressed, since the JavaScript writer has no LZ4.
+Files written by a board join the set once captured.
+A firmware or mobile writer test loads these files at a full 40 character commit of this repo and expects the same Item.
 Every rule fits an ESP32-S3. Each needs one pass over the rows, sums in doubles and H3 C.
 
 | Topic | Rule |
