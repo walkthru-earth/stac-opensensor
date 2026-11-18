@@ -43,7 +43,7 @@ Status words mean the following.
 ## Bridge register
 
 Rows 1 to 9 come from the bridge's open questions.
-Of the later rows, rows 10 to 16, 25 to 27, 31 to 35 and 40 come from its decisions, the rest from its questions.
+Of the later rows, ids that start with D come from its decisions and ids that start with Q from its questions.
 Numbers the bridge never used, or used only for notes, are left out.
 
 | Id | Topic | Status on 2026-11-04 |
@@ -144,9 +144,9 @@ These rows were rebuilt from issues and decision records, not from the bridge. T
 
 | Question | Source | Owner |
 | --- | --- | --- |
-| The phone as a template owner, with an optional `firmware` block in the template | stac issue #2 | spec |
+| The phone as a template owner, with an optional `firmware` block in the template | stac issue #5 | spec |
 | Where calibration offsets and `calibration_id` values live | stac issue #2 | spec |
-| Derived aggregates and Discover products, their ids, layout and STAC | stac issue #2, DR0002 | owner, then spec |
+| Derived aggregates and Discover products, their ids, layout and STAC | stac issue #6, DR0002 | owner, then spec |
 | Aggregate enum gains counter `delta` and circular mean | Q17 | spec |
 | Recheck the `geo` version string when GeoParquet 2.0.0 is final | D32 | spec |
 | Where `urn:walkthru-earth:property:` URIs resolve. Labels and definitions now live in [registry/properties.json](../registry/properties.json) | D8, D10, OD-2026-11-17-1 | owner |

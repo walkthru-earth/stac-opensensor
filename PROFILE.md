@@ -71,9 +71,10 @@ templates/<board>/<template sha256>.json              optional template mirror
 ```
 
 `<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
-`HHMM` is the UTC start of the rotation window that holds the first row, and `<boot>` is the 32 hex boot id from the footer.
-The window start is floor(first row seconds ÷ `rotation_interval_s`) × `rotation_interval_s`, as the firmware logger computes it.
-A board that boots at 13:07 with a 900 s window writes `data_1300_…` whose first row is 13:07.
+`HHMM` is the UTC start of the rotation window that holds the earliest row, and `<boot>` is the 32 hex boot id from the footer.
+The earliest row is the one with the smallest `event_time_utc_us`, so rows need not be stored in time order.
+The window start is floor(earliest row seconds ÷ `rotation_interval_s`) × `rotation_interval_s`, as the firmware logger computes it.
+A board that boots at 13:07 with a 900 s window writes `data_1300_…` whose earliest row is 13:07.
 `<board>` is the board slug, such as `m5stack-cores3`. Every slug is listed in [registry/boards.json](registry/boards.json),
 and [CONTRIBUTING.md](CONTRIBUTING.md#1-claim-a-board-slug) says how a new board claims one.
 `<dict>` is the 64 hex digest of the firmware dictionary. The footer holds it as `dictionary.sha256` and the template as `firmware.dict`.
@@ -82,7 +83,7 @@ A template is keyed by `<dict>` because one schema can ship with several diction
 Only dated `data_HHMM_` files are published. Unsynced, benchmark and other board paths stay on the device.
 A board closes a file at the end of every rotation window and uploads it at once.
 The window is 600, 900, 1800 or 3600 s, 900 by default. Each divides 3600, so a window never crosses an hour or a day,
-and the date of the window is the date of its first row.
+and the date of the window is the date of its earliest row.
 So the newest data is at most one window old.
 Two files may share a window after a reboot or a retried upload. Readers order rows by time and drop repeats of the same Thing and time.
 Files written before the board knew UTC time get no Item until they are reconciled.
@@ -149,6 +150,8 @@ The catalog host writes only `catalog.json` and `thing=<uuid>/items.parquet`. It
 The phone app and an indexer transport and validate these documents.
 They MAY rebuild a File Item or a Thing Collection from the files, the footers, the templates and the owner config.
 A rebuilt document MUST equal the board's under [Canonical form](#canonical-form), and a tool never publishes one that differs.
+The owner config is not published. An indexer takes the owner fields of the source table below from the published Collection
+and rebuilds the rest.
 The phone writes a File Item only when it is the Thing, that is when the phone itself logs and uploads the file.
 When the phone uploads a board's file after a BLE or LAN sync, the file and its Item are published,
 but the Collection does not list it in its extent until the board learns of that upload. Telling the board is future work.
@@ -162,7 +165,7 @@ The board fills the Thing Collection from four sources.
 | Source | Fields |
 | --- | --- |
 | Template | `item_assets.data` columns with their display hints, `table:primary_datetime`, `table:primary_geometry`, `keywords`, `instruments`, `opensensor:sample_interval_s`, `opensensor:primary`, `opensensor:scales`, the dictionary link |
-| Footer of the newest file | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
+| Footer of the file with the latest window start | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
 | Upload ledger | `extent`, the union of uploaded Item boxes and the earliest uploaded `start_datetime` |
 | Owner config | `title`, `description`, `providers`, contacts, the bucket and prefix in `partition:glob`, column display hints, `opensensor:primary`, `opensensor:scales` |
 
@@ -190,7 +193,7 @@ Every rule fits an ESP32-S3. Each needs one pass over the rows, sums in doubles 
 | `minimum` and `maximum` | The widened values, unrounded |
 | `mean` | The sum of counted values in row order ÷ their count, rounded to 2 decimals |
 | `valid_percent` | 100 × counted rows ÷ `table:row_count`, rounded to 2 decimals. A column with no counted row has only `valid_percent` `0` |
-| Rounding | Half away from zero, sign(v) × floor(\|v\| × 100 + 0.5) ÷ 100 in doubles |
+| Rounding | Half away from zero, sign(v) × floor(\|v\| × 100 + 0.5) ÷ 100 in doubles, each operation rounded on its own with no fused multiply add. C and Kotlin Native builds use `-ffp-contract=off` |
 | Item `stac_extensions` | Table, File, Grid for a fixed Thing only, Anonymized Location, the OpenSensor extension, this profile, in that order |
 | Item `links` | `root`, `parent`, `collection`, in that order, each with type `application/json` |
 | Item data asset | `href`, `type` `application/vnd.apache.parquet`, `roles` `["data"]`, `file:size`, `file:checksum`, `table:row_count` and the statistics |
@@ -198,13 +201,20 @@ Every rule fits an ESP32-S3. Each needs one pass over the rows, sums in doubles 
 | Geometry | The steps in [File Item](#file-item). H3 C 4.5.0 is the reference, the version the firmware vendors and h3-js 4.5.0 wraps |
 | Collection `stac_extensions` | Table, CF, Classification, File, Partition, Contacts when the owner gives a contact, the OpenSensor extension, this profile, in that order |
 | Collection `links` | `root`, `parent`, the dictionary `describedby`, the template `describedby` titled `Board template`, `license`, in that order |
-| Collection `extent` | One `bbox` from the ledger and one interval from the ledger start to `null` |
+| Collection `extent` | One `bbox` from the ledger and one interval from the ledger start to `null`. The ledger start is the earliest instant, compared as int64 microseconds, never as text |
+| Collection `license` | `CC-BY-4.0` |
+| Collection `root` and `parent` links | `href` `../catalog.json`, type `application/json` |
+| Collection dictionary link | The template's `describedby` link of type `text/plain`, copied unchanged |
+| Collection template link | `href` from the footer template `href`, type `application/json`, title `Board template`, `file:checksum` `1220` and the footer template `sha256` |
+| Collection `license` link | `href` `https://creativecommons.org/licenses/by/4.0/`, type `text/html`, title `CC BY 4.0` |
 | Collection columns | The template columns in template order, with the owner's display hints merged over the template's, key by key |
 | Collection `opensensor:primary` | The owner's, else the template's, else left out |
 | Collection `opensensor:scales` | The template's scales overlaid by the owner's, keeping only ids a column names. Left out when none is named |
 
 A file gets no Item when its name is not a dated `data_HHMM_` name, its footer has no Thing id or mobility, it has no rows,
 a row has no UTC time, no row is located, a cell is not resolution 8, or a fixed Thing file holds more than one cell.
+It also gets none when its name or partition is not the rotation window of its earliest row,
+or its footer `rotation_interval_s` is not 600, 900, 1800 or 3600.
 A null or zero `h3_cell_id` is not located.
 
 ## Thing Collection
@@ -353,7 +363,7 @@ and is found only by listing the partition.
 
 Geometry is built the same way by every writer, so a regenerated Item is equal to the board's.
 
-1. Take the distinct non-null `h3_cell_id` values of the file as 15 character lowercase H3 strings.
+1. Take the distinct located `h3_cell_id` values of the file, not null and not zero, as 15 character lowercase H3 strings.
 2. Sort them in ascending order.
 3. Call H3 `cellsToMultiPolygon` on that list with GeoJSON order, longitude first and closed rings.
 4. One polygon becomes a GeoJSON Polygon, more become a MultiPolygon. Coordinates are kept as H3 returns them.
@@ -599,7 +609,7 @@ and a fixed ELECROW CrowPanel e-paper with a Sensirion SEN63C in Accra, whose ow
 | [examples/thing=3f2b9c1e…/collection.json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/collection.json) | Fixed Thing Collection |
 | [examples/thing=3f2b9c1e…/…/data_1300_….json](examples/thing=3f2b9c1e-6a7d-4e58-9b1c-2d4f6a8e0c13/year=2026/month=10/day=24/data_1300_0f3a9c2e5b7d41e8a6c3f0b2d9e4a713_2881-2970-0.json) | Fixed File Item, one 900 s window |
 | [examples/thing=7c1e4b9a…/collection.json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/collection.json) | Moving Thing Collection |
-| [examples/thing=7c1e4b9a…/…/data_0815_….json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-487-0.json) | Moving File Item, three cells, first row 08:17:20 in the 08:15 window |
+| [examples/thing=7c1e4b9a…/…/data_0815_….json](examples/thing=7c1e4b9a-3d52-4f86-a0b7-e9d2c5f81a46/year=2026/month=10/day=24/data_0815_5e9d0c7b31a84f62b8d47a10c3e6f295_412-487-0.json) | Moving File Item, three cells, earliest row 08:17:20 in the 08:15 window |
 | [examples/thing=b4d9e2a7…/collection.json](examples/thing=b4d9e2a7-5c31-4f08-9e6a-1a7c3f2d8e54/collection.json) | Fixed CrowPanel Collection with display hints and a main metric |
 | [examples/thing=b4d9e2a7…/…/data_0900_….json](examples/thing=b4d9e2a7-5c31-4f08-9e6a-1a7c3f2d8e54/year=2026/month=11/day=14/data_0900_c81d4e2f9a3b47d6b0e5f1a2c7d93e48_1-90-0.json) | CrowPanel File Item, the first rows still warming up |
 | [footers/m5stack-cores3.json](footers/m5stack-cores3.json) | CoreS3 footer of the fixed Item's file |

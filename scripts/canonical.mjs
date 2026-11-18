@@ -39,6 +39,19 @@ export const rfc3339 = (us) => {
   return micros === 0 ? `${text}Z` : `${text}.${pad(micros, 6).replace(/0+$/, '')}Z`;
 };
 
+// Reads an RFC 3339 UTC datetime back to int64 microseconds, so times compare as instants, never as text.
+export const microsOf = (text) => {
+  const match = /^(.{19})(?:\.([0-9]{1,6}))?Z$/.exec(text);
+  if (!match) return NaN;
+  return Date.parse(`${match[1]}Z`) * 1000 + Number((match[2] ?? '').padEnd(6, '0'));
+};
+
+// The earliest of RFC 3339 datetimes, compared as instants. 13:00:00Z comes before 13:00:00.5Z.
+export const earliest = (texts) => texts.reduce((a, b) => (microsOf(b) < microsOf(a) ? b : a));
+
+// A null or zero h3_cell_id is not located.
+export const isLocated = (cell) => cell !== null && cell !== undefined && !/^0+$/.test(cell);
+
 // The rotation window that holds a time, as the board names the file and its partition.
 export const windowOf = (us, rotationSeconds) => {
   const seconds = Math.floor(us / 1e6);
@@ -122,7 +135,7 @@ export const buildItem = ({ file, rows, footer, template }) => {
   const times = rows.event_time_utc_us ?? [];
   if (times.length === 0) return { none: 'no rows' };
   if (times.some((t) => t === null || t === undefined)) return { none: 'a row has no UTC time' };
-  const located = (rows.h3_cell_id ?? []).filter((c) => c !== null && c !== undefined && !/^0+$/.test(c));
+  const located = (rows.h3_cell_id ?? []).filter(isLocated);
   if (located.length === 0) return { none: 'no located row' };
   const cells = [...new Set(located)].sort();
   if (cells.some((c) => !isValidCell(c) || getResolution(c) !== RESOLUTION)) {

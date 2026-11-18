@@ -48,6 +48,15 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 
 - The WHO scales mixed averaging periods. Both are now the WHO 2021 24-hour guideline and interim targets the app uses,
   PM2.5 15, 25, 37.5, 50 and 75 ug/m3 and PM10 45, 50, 75, 100 and 150 ug/m3, with the app's step colours
+- Canonical form gaps from the v0.1.0 re-review, issue #12
+  - The rotation window comes from the earliest row, the smallest `event_time_utc_us`, not the first stored row
+  - Rounding rounds each operation on its own, with no fused multiply add
+  - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
+  - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
+  - The Collection takes its footer from the file with the latest window start
+  - The `geo` bbox check skips zero cells too, as the Item rules already did
+  - An indexer takes the owner fields from the published Collection, since the owner config is not published
+  - The no-Item list names a file outside its rotation window and a footer with no allowed window
 
 ## [v0.1.0] - 2026-11-04
 
