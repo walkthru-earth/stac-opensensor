@@ -24,3 +24,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: json-schema
           destination_dir: ${{ env.GITHUB_REF_SLUG }}
+      - name: Check the served schemas and registries, retrying while Pages updates
+        run: npm run check-live-schemas -- --attempts 10 --wait 30
+      - name: Validate the examples against the served schemas
+        run: npm run check-examples-live

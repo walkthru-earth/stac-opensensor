@@ -6,6 +6,7 @@
     "check-markdown": "remark . -f -r .github/remark.yaml",
     "check-examples": "stac-node-validator . --lint --verbose --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json",
     "check-profile": "node scripts/check-profile.mjs",
+    "check-live-schemas": "node scripts/check-live-schemas.mjs",
     "format-examples": "stac-node-validator . --format --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/schema.json=./json-schema/schema.json --schemaMap https://walkthru-earth.github.io/stac-opensensor/v0.1.0/profile.json=./json-schema/profile.json",
     "check-examples-live": "stac-node-validator . --verbose"
   },

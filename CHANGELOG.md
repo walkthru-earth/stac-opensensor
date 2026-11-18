@@ -35,6 +35,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
 - A Scale object requires `period`, the ISO 8601 averaging period its bounds apply to
 - The publish workflow also serves `registry/` beside the schemas
+- The publish workflow checks that every served schema and registry equals its repo file,
+  and a daily workflow repeats the check for every released tag
 
 ### Fixed
 

@@ -1,0 +1,28 @@
+name: Check Published Schemas
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+      - run: npm ci
+      - name: Check every released tag against its served files
+        run: |
+          status=0
+          for tag in $(git tag --list 'v*' --sort=v:refname); do
+            dir="$RUNNER_TEMP/$tag"
+            git worktree add --detach "$dir" "$tag"
+            echo "::group::$tag"
+            node scripts/check-live-schemas.mjs --root "$dir" || status=1
+            npx stac-node-validator "$dir" --verbose || status=1
+            echo "::endgroup::"
+          done
+          exit $status
