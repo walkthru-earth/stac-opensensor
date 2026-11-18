@@ -247,7 +247,7 @@ Every column has `name`, `type` and exactly one value in `roles`. The role decid
 ## Display hints
 
 Display hints tell a client how to show a column. They never change what a value means, so a reader that ignores them loses nothing.
-A template MAY carry them, as the firmware build knows them, and the owner config MAY add or replace them key by key.
+A template MAY carry them, as the firmware build knows them, and the owner config MAY add or replace column hints key by key.
 
 | Field | Where | Meaning |
 | --- | --- | --- |
@@ -322,7 +322,7 @@ Today's firmware does not emit bit fields yet. `npm run check-profile` checks a 
 A class in `classification:classes` and a bit field or its classes MAY carry `opensensor:title_i18n` and `opensensor:description_i18n`,
 the same maps as on a column, so a client shows a status in any language without its own strings.
 A class keeps its plain `title` and `description` from Classification. A bit field has no `title`, so its map translates the `name`.
-Class and bit field translations come from the template. The owner config does not change them.
+Class and bit field translations come from the template only. The owner config does not add or replace them.
 
 ## File Item
 
@@ -528,7 +528,8 @@ Firmware and app docs cite this profile by its full 40 character commit.
 
 The board declares its own setup wizard and Device settings, as in firmware
 [decision 0003](https://github.com/walkthru-earth/opensensor-space-firmware/blob/85a0e77c9b3a70ec407e872346af867cd7d66f2e/docs/shared/decisions/0003-metadata-driven-apps.md).
-The generator copies `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
+The generator will copy `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
+It does not do so yet. That copy is the firmware follow-up in [opensensor-space-firmware#184](https://github.com/walkthru-earth/opensensor-space-firmware/issues/184).
 They are hashed with the template, so a change moves `desc` and never moves `dict`.
 Setup is local. It lives in the template and on the device, never in a Collection or an Item.
 

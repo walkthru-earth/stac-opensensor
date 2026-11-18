@@ -101,21 +101,25 @@ const registryErrors = (doc) => {
 };
 
 // The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
+// Shapes the schema rejects are skipped here, so their schema errors still reach the report.
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const manifestErrors = (firmware) => {
   const errors = [];
-  const keys = firmware?.config_keys ?? {};
+  const keys = isObject(firmware?.config_keys) ? firmware.config_keys : {};
   for (const list of ['setup', 'settings']) {
     const ids = new Set();
-    for (const step of firmware?.[list] ?? []) {
+    for (const step of Array.isArray(firmware?.[list]) ? firmware[list] : []) {
+      if (!isObject(step)) continue;
       if (ids.has(step.id)) errors.push(`firmware.${list} lists ${step.id} twice`);
       ids.add(step.id);
-      for (const key of step.keys ?? []) {
-        if (!keys[key]) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
+      for (const key of Array.isArray(step.keys) ? step.keys : []) {
+        if (!isObject(keys[key])) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
       }
     }
   }
   for (const [key, spec] of Object.entries(keys)) {
-    const { min, max } = Array.isArray(spec.values) ? {} : spec.values ?? {};
+    if (!isObject(spec) || !isObject(spec.values)) continue;
+    const { min, max } = spec.values;
     if (min > max) errors.push(`firmware.config_keys ${key} range runs from ${min} down to ${max}`);
   }
   return errors;
@@ -872,7 +876,13 @@ const brokenTemplates = {
     doc.firmware.config_keys['panel.theme'].values = ['light', 'light'];
   },
   'a boolean key with values': (doc) => {
-    doc.firmware.config_keys['sen6x.co2_asc'].values = [true, false];
+    doc.firmware.config_keys['sen6x.co2_asc'].values = [0, 1];
+  },
+  'a null config key': (doc) => {
+    doc.firmware.config_keys['panel.theme'] = null;
+  },
+  'a null setup step': (doc) => {
+    doc.firmware.setup.push(null);
   },
   'a text key longer than 64 bytes': (doc) => {
     doc.firmware.config_keys['panel.label'].values = { min: 0, max: 65 };
