@@ -132,7 +132,8 @@ npm test
 
 Other scripts.
 
-- `npm run canonical -- item <file.parquet>` prints the canonical Item of a data file, `compare <a.json> <b.json>` the differences.
+- `npm run --silent canonical -- item <file.parquet>` prints the canonical Item of a data file, `compare <a.json> <b.json>` the differences.
+  `--silent` keeps npm's banner out of the JSON, so `npm run --silent canonical -- item f.parquet > item.json` works.
   It exits 0 when equal, 1 on a difference, 2 on bad input and 3 when the file gets no Item.
 - `node scripts/make-golden.mjs` rewrites `fixtures/golden/`. Its output is byte for byte stable, so a diff means a real change.
 - `npm run format-examples` rewrites the examples in the validator's format. Run it after editing an example and commit the diff.

@@ -256,8 +256,9 @@ After a release, `npm run check-examples-live` validates the examples against th
 `npm run check-live-schemas` checks that each schema `$id` URL serves the bytes of its repo file.
 Both need network, so `npm test` leaves them out.
 To format the examples, run `npm run format-examples`.
-To check a writer, `npm run canonical -- item <file.parquet>` prints the canonical Item of a board data file,
-and `npm run canonical -- compare <a.json> <b.json>` lists where two Items differ.
+To check a writer, `npm run --silent canonical -- item <file.parquet>` prints the canonical Item of a board data file,
+and `npm run --silent canonical -- compare <a.json> <b.json>` lists where two Items differ.
+`--silent` keeps npm's banner out of the printed JSON.
 
 ### Validating your own files
 
