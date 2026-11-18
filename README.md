@@ -160,7 +160,7 @@ in the spirit of STAC Browser's [stac-fields](https://github.com/stac-utils/stac
 Each entry holds an English `label` and `definition`, and may hold a `short_label`. Every `short_label` present has Arabic,
 and so does the `label` of each measurement a card shows, such as temperature, PM2.5, CO2 and battery charge.
 Diagnostic and device labels stay English. The Arabic still waits
-for a native speaker check. An entry also holds an optional `symbol`, the `group`, the ASCII UCUM `unit`, default `decimals`
+for a native speaker check. An entry also holds an optional `symbol`, the `group`, an optional ASCII UCUM `unit`, default `decimals`
 and an optional default `scale`. An entry without one has no default scale.
 A `scale` of `null` means no scale on purpose. WHO 2021 sets no guideline for PM1 or PM4, CF=1 values are uncorrected factory values,
 the PM2.5 batch candidate is a correction under review, and CO2 waits for the owner to choose a scale and its source.

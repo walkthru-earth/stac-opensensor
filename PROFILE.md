@@ -298,7 +298,7 @@ and entries for common measurements a new board may use, such as air pressure an
 Each entry has a `label` and `definition` in English, and may have a `short_label`. Every `short_label` present has Arabic,
 and so does the `label` of each measurement a card shows, such as temperature, PM2.5, CO2 and battery charge.
 Diagnostic and device labels stay English.
-It also has an optional `symbol`, the `group`, the ASCII UCUM `unit` the templates use, default `decimals` and an optional default `scale`.
+It also has an optional `symbol`, the `group`, an optional ASCII UCUM `unit` the templates use, default `decimals` and an optional default `scale`.
 [registry/scales.json](registry/scales.json) holds the shared scales by id.
 Both validate against [json-schema/registry.json](json-schema/registry.json).
 The [Publish JSON Schema](.github/workflows/publish.yaml) workflow serves them beside the schemas,
