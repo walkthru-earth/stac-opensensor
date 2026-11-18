@@ -832,6 +832,9 @@ const brokenRegistries = {
   'a group outside the vocabulary': (properties) => {
     Object.values(properties.properties)[0].group = 'weather';
   },
+  'a unit with a micro sign': (properties) => {
+    Object.values(properties.properties)[0].unit = 'µg/m³';
+  },
 };
 for (const [what, mutate] of Object.entries(brokenRegistries)) {
   const doc = structuredClone(registry);

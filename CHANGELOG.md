@@ -40,6 +40,11 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - A Catalog child link href must be exactly `./thing=<uuid>/collection.json`, with the `./` and a lower case UUID.
   A catalog host that writes `thing=<uuid>/collection.json` without the `./` must change it, though both resolve to the same Collection
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
+- Property registry entries for air pressure (`hPa`) and nitrogen dioxide (`[ppb]`), with English and Arabic labels
+- Arabic for every `short_label` and for the `label` of each measurement a card shows, the particle counts among them.
+  Diagnostic and device labels stay English. The Arabic waits for a native speaker check
+- `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
+  such as `µg/m³` or `hPa ` with a trailing space
 - `npm run canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
   and `npm run canonical -- compare` lists where two documents differ
 - `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.
@@ -47,6 +52,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 
 ### Changed
 
+- WHO scale step labels read as the app shows them, such as "Within the WHO guideline", "Within WHO interim target 4"
+  and "Above every WHO target", in English and Arabic
 - Display hints are published. The rule that the app profile never goes into published STAC is gone.
   A user's own overrides still stay in the app
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
