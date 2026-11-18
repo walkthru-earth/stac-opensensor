@@ -11,3 +11,5 @@ jobs:
       - run: |
           npm ci
           npm test
+      - name: Check registered first templates against their href
+        run: npm run check-remote

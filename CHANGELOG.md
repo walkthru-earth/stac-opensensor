@@ -27,6 +27,19 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - An optional `label` and `label_i18n` on each setup step and settings section, the page or card title.
   A board's own step or section should carry one, and an app catalog id may omit it
 - `opensensor:title_i18n` and `opensensor:description_i18n` on `classification:classes` entries and on bit fields and their classes
+- Board registry `registry/boards.json` with every board slug, its vendor, model, template home and first template.
+  `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
+  `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
+- `npm run validate` checks templates, footers, geo keys, Collections, Items, Catalogs and registries from outside this
+  repository, one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift.
+  Collections and Items meet the extension schema as well as the profile.
+  An Item geometry must be the union of at most 10000 resolution 8 cells with closed rings.
+  The cells are rebuilt from the boundary, so a large or many position geometry fails fast.
+  The cell that holds a pole, and a union round it, pass as well.
+  `--sha256` fails when no file is a template.
+- A Catalog child link href must be exactly `./thing=<uuid>/collection.json`, with the `./` and a lower case UUID.
+  A catalog host that writes `thing=<uuid>/collection.json` without the `./` must change it, though both resolve to the same Collection
+- `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
 - `npm run canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
   and `npm run canonical -- compare` lists where two documents differ
 - `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.

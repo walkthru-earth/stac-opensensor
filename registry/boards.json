@@ -1,0 +1,36 @@
+{
+  "$schema": "https://walkthru-earth.github.io/stac-opensensor/v0.1.0/registry.json",
+  "type": "OpenSensorBoardRegistry",
+  "boards": {
+    "elecrow-crowpanel-epaper-42": {
+      "vendor": "ELECROW",
+      "model": "CrowPanel ESP32-S3 4.2 inch E-paper HMI v1.2",
+      "title": "ELECROW CrowPanel ESP32-S3 4.2 inch E-paper HMI v1.2 with Sensirion SEN63C",
+      "home": "https://github.com/walkthru-earth/opensensor-space-firmware/tree/main/docs/shared/templates/elecrow-crowpanel-epaper-42",
+      "first_template": {
+        "sha256": "40544faf12a82d7895a5231758a2901cd4be851b918e839258f4c764879e0a98",
+        "href": "https://raw.githubusercontent.com/walkthru-earth/opensensor-space-firmware/31734ebc05cf0a13e26d31fb77205aab73f9eec7/docs/shared/templates/elecrow-crowpanel-epaper-42/e7279c4edbe87071e4a51889124a43d7ffcd1977c79c8575887ae35bdee10903.json"
+      }
+    },
+    "m5stack-cores3": {
+      "vendor": "M5Stack",
+      "model": "CoreS3",
+      "title": "M5Stack CoreS3 with Plantower PMSA003, Bosch Sensortec BMI270 and BMM150, and Lite-On LTR-553ALS-WA",
+      "home": "https://github.com/walkthru-earth/opensensor-space-firmware/tree/main/docs/shared/templates/m5stack-cores3",
+      "first_template": {
+        "sha256": "4dd6c4b1ef19187ed2c011ab86018e43be0f28edc3af63a0f6a27b70ff203ef3",
+        "href": "https://raw.githubusercontent.com/walkthru-earth/opensensor-space-firmware/bb618f32a8a9bfe6a633a22ad5e99d319d55d46b/docs/shared/templates/m5stack-cores3/3b4d8500a19f42c6743b0f7d725276c96ca14a0c249f613048603afbc3cfaff9.json"
+      }
+    },
+    "waveshare-esp32-s3-sim7670g": {
+      "vendor": "Waveshare",
+      "model": "ESP32-S3-SIM7670G-4G V2.0",
+      "title": "Waveshare ESP32-S3-SIM7670G-4G V2.0 with Plantower PMS5003T and Analog Devices MAX17048",
+      "home": "https://github.com/walkthru-earth/opensensor-space-firmware/tree/main/docs/shared/templates/waveshare-esp32-s3-sim7670g",
+      "first_template": {
+        "sha256": "d4e4fa499e20c414b3b1fd61343982e5735687d67cfb8b4591efaa5ed5f96bd4",
+        "href": "https://raw.githubusercontent.com/walkthru-earth/opensensor-space-firmware/bb618f32a8a9bfe6a633a22ad5e99d319d55d46b/docs/shared/templates/waveshare-esp32-s3-sim7670g/a8605aafb6f76b794e9e7fb32927be6d203afeeb14527206c0e49c1eb0436809.json"
+      }
+    }
+  }
+}

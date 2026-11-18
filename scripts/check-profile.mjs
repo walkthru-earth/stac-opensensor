@@ -9,33 +9,28 @@
 // 4. Every Item validates, sits in the partition and HHMM of its rotation window, has a geometry made of
 //    resolution 8 H3 cells, and equals the canonical Item rebuilt from its rows in fixtures/.
 // 5. Footers and their GeoParquet geo keys validate and agree with their template, Collection and rows.
-// 6. Broken documents must fail, so the checks above cannot pass by accident.
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+// 6. Every board slug in templates/, footers/ and examples/ is in registry/boards.json.
+// 7. scripts/validate.mjs passes every document of this repository on its own.
+// 8. Broken documents must fail, so the checks above cannot pass by accident.
+import { readdirSync, existsSync, mkdtempSync, copyFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, basename } from 'node:path';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import { polygonToCells, cellsToMultiPolygon, cellToLatLng, getResolution, isValidCell } from 'h3-js';
 import {
-  RESOLUTION, TOLERANCE, EXT, bboxOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
+  polygonToCells, cellsToMultiPolygon, cellToLatLng, cellToParent, cellToCenterChild, getResolution, gridDisk, isValidCell,
+  latLngToCell,
+} from 'h3-js';
+import {
+  RESOLUTION, TOLERANCE, EXT, bboxOf, geometryOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
 } from './canonical.mjs';
+import * as shared from './checks.mjs';
 
-const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
-const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
+const { read, sha256, schemaErrors, checkRegistry, columnErrors, columnsOf } = shared;
+const {
+  profile, footer: footerSchema, registry: registrySchema, boardRegistry: boardRegistrySchema,
+} = shared.schemas;
 const isRelative = (href) => !/^([a-zA-Z][a-zA-Z0-9+.-]*:|\/)/.test(href);
 const hasScheme = (href) => /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href);
-
-const ajv = new Ajv({ allErrors: true, strict: false });
-addFormats(ajv);
-for (const name of ['schema', 'profile', 'template', 'footer', 'registry']) {
-  ajv.addSchema(read(`json-schema/${name}.json`));
-}
-const base = 'https://walkthru-earth.github.io/stac-opensensor/v0.1.0/';
-const profile = ajv.getSchema(`${base}profile.json`);
-const templateSchema = ajv.getSchema(`${base}template.json`);
-const footerSchema = ajv.getSchema(`${base}footer.json`);
-const registrySchema = ajv.getSchema(`${base}registry.json`);
-const schemaErrors = (validate, doc) => (validate(doc) ? [] : [ajv.errorsText(validate.errors)]);
 
 let failures = 0;
 const report = (file, errors) => {
@@ -45,118 +40,40 @@ const report = (file, errors) => {
   }
 };
 const warn = (file, message) => console.warn(`warning ${file}: ${message}`);
-const same = (a, b) => differences(a, b).length === 0;
 
 // 0. Registries
 const registry = read('registry/properties.json');
 const scaleRegistry = read('registry/scales.json');
-const checkRegistry = (properties, scales) => {
-  const errors = [...schemaErrors(registrySchema, properties), ...schemaErrors(registrySchema, scales)];
-  for (const [uri, entry] of Object.entries(properties.properties ?? {})) {
-    if (typeof entry.scale === 'string' && !scales.scales?.[entry.scale]) {
-      errors.push(`${uri} points at scale ${entry.scale}, which registry/scales.json does not have`);
-    }
-  }
-  return errors;
-};
 report('registry/', checkRegistry(registry, scaleRegistry));
 
-// A scale id names one scale everywhere. A document that reuses a registry id must carry the same scale.
-const scaleErrors = (scales) => Object.entries(scales ?? {})
-  .filter(([id, scale]) => scaleRegistry.scales[id] && !same(scale, scaleRegistry.scales[id]))
-  .map(([id]) => `scale ${id} differs from registry/scales.json`);
-
-// Display hints in the template or the Collection. primary and scale must name what the document holds.
-const hintErrors = (doc) => {
-  const errors = [];
-  const columns = doc.item_assets?.data?.['table:columns'] ?? [];
-  const primary = doc['opensensor:primary'];
-  if (primary !== undefined && !columns.some((c) => c.name === primary)) {
-    errors.push(`opensensor:primary ${primary} is not a column`);
-  }
-  for (const column of columns) {
-    const scale = column['opensensor:scale'];
-    if (scale !== undefined && !doc['opensensor:scales']?.[scale]) {
-      errors.push(`column ${column.name} points at missing scale ${scale}`);
-    }
-    if ('classification:bitfields' in column && column.unit !== '{bitmask}') {
-      errors.push(`column ${column.name} has classification:bitfields but its unit is not {bitmask}`);
-    }
-  }
-  return [...errors, ...scaleErrors(doc['opensensor:scales'])];
-};
-
-// Every column property is in the registry, with the same unit.
-const registryErrors = (doc) => {
-  const errors = [];
-  for (const column of doc.item_assets?.data?.['table:columns'] ?? []) {
-    const entry = registry.properties[column['opensensor:property']];
-    if (!entry) {
-      errors.push(`column ${column.name} property ${column['opensensor:property']} is not in registry/properties.json`);
-    } else if (entry.unit !== column.unit) {
-      errors.push(`column ${column.name} unit ${column.unit} differs from the registry unit ${entry.unit}`);
-    }
-  }
-  return errors;
-};
-
-// The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
-// Shapes the schema rejects are skipped here, so their schema errors still reach the report.
-const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const manifestErrors = (firmware) => {
-  const errors = [];
-  const keys = isObject(firmware?.config_keys) ? firmware.config_keys : {};
-  for (const list of ['setup', 'settings']) {
-    const ids = new Set();
-    for (const step of Array.isArray(firmware?.[list]) ? firmware[list] : []) {
-      if (!isObject(step)) continue;
-      if (ids.has(step.id)) errors.push(`firmware.${list} lists ${step.id} twice`);
-      ids.add(step.id);
-      for (const key of Array.isArray(step.keys) ? step.keys : []) {
-        if (!isObject(keys[key])) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
-      }
-    }
-  }
-  for (const [key, spec] of Object.entries(keys)) {
-    if (!isObject(spec) || !isObject(spec.values)) continue;
-    const { min, max } = spec.values;
-    if (min > max) errors.push(`firmware.config_keys ${key} range runs from ${min} down to ${max}`);
-  }
-  return errors;
-};
+// The single document checks live in checks.mjs, shared with scripts/validate.mjs.
+const hintErrors = (doc) => shared.hintErrors(doc, scaleRegistry);
+const registryErrors = (doc) => shared.registryErrors(doc, registry);
 
 // 1. Templates
-const checkTemplate = (doc) => [...schemaErrors(templateSchema, doc), ...hintErrors(doc), ...registryErrors(doc),
-  ...manifestErrors(doc.firmware)];
+const checkTemplate = (doc) => shared.checkTemplate(doc, { registry, scaleRegistry });
 const templates = new Map();
+// Every template file with its folder, kept apart from the digest-keyed map, so identical copies all count.
+const templateFolders = [];
 for (const name of readdirSync('templates', { recursive: true }).filter((n) => n.endsWith('.json'))) {
   const file = `templates/${name}`;
   const doc = read(file);
   const errors = checkTemplate(doc);
-  const dictLink = doc.links?.find((l) => l.rel === 'describedby');
-  if (dictLink?.['file:checksum'] !== `1220${doc.firmware?.dict}`) {
-    errors.push('describedby file:checksum does not match firmware.dict');
-  }
   if (!/^[a-z0-9-]+\/[0-9a-f]{64}\.json$/.test(name) || !name.endsWith(`/${doc.firmware?.dict}.json`)) {
     errors.push('path is not templates/<board>/<firmware.dict>.json');
   }
   report(file, errors);
   templates.set(`1220${sha256(file)}`, { file, doc, board: name.split('/')[0] });
+  templateFolders.push([file, name.split('/')[0]]);
 }
 
 // Shared helpers
-const columnsOf = (doc) => doc.item_assets?.data?.['table:columns'] ?? [];
 // The display hints a Collection may change. Every other column member is the template's.
 const HINTS = ['title', 'description', 'opensensor:title_i18n', 'opensensor:description_i18n', 'opensensor:decimals',
   'opensensor:group', 'opensensor:scale'];
 const publicColumn = (column) => JSON.stringify(Object.fromEntries(Object.entries(column)
   .filter(([key]) => !HINTS.includes(key))));
 const describedby = (doc, type) => (doc.links ?? []).filter((l) => l.rel === 'describedby' && l.type === type);
-const ringsOf = (geometry) => {
-  if (geometry?.type === 'Polygon') return [geometry.coordinates];
-  if (geometry?.type === 'MultiPolygon') return geometry.coordinates;
-  return [];
-};
 const close = (a, b) => differences(a, b, '', true).length === 0;
 const checkLinks = (file, doc) => {
   const errors = [];
@@ -207,32 +124,7 @@ const checkCollection = (file, doc) => {
       errors.push(`${key} differs from ${entry.file}`);
     }
   }
-  const names = new Set(columns.map((c) => c.name));
-  const data = doc.item_assets?.data ?? {};
-  for (const key of ['table:primary_datetime', 'table:primary_geometry']) {
-    if (key in data && !names.has(data[key])) {
-      errors.push(`${key} ${data[key]} is not a column`);
-    }
-  }
-  const ids = new Set();
-  for (const column of columns) {
-    const id = column['opensensor:field_id'];
-    if (id !== undefined) {
-      if (!Number.isInteger(id) || id < 1 || ids.has(id)) {
-        errors.push(`column ${column.name} has a repeated or invalid field_id ${id}`);
-      }
-      ids.add(id);
-    }
-    const gate = column['opensensor:valid_when']?.column;
-    if (gate !== undefined && !names.has(gate)) {
-      errors.push(`column ${column.name} valid_when names missing column ${gate}`);
-    }
-    for (const from of column['opensensor:derived']?.from ?? []) {
-      if (!names.has(from)) {
-        errors.push(`column ${column.name} derived.from names missing column ${from}`);
-      }
-    }
-  }
+  errors.push(...columnErrors(doc));
   return errors;
 };
 
@@ -257,14 +149,7 @@ const rebuildCollection = (doc, items) => {
 
 // 4. Items
 const checkItem = (file, doc, collection, footer) => {
-  const errors = [...schemaErrors(profile, doc), ...checkLinks(file, doc)];
-  const stem = basename(file, '.json');
-  if (doc.id !== stem) {
-    errors.push(`id ${doc.id} is not the file name ${stem}`);
-  }
-  if (doc.assets?.data?.href !== `./${doc.id}.parquet`) {
-    errors.push(`data href is not ./${doc.id}.parquet`);
-  }
+  const errors = [...shared.itemErrors(file, doc), ...checkLinks(file, doc)];
   if (!collection || collection.id !== doc.collection) {
     errors.push('collection link does not reach the Collection named by collection');
     return errors;
@@ -287,30 +172,10 @@ const checkItem = (file, doc, collection, footer) => {
   if (!doc.id.startsWith(`data_${hhmmOf(window)}_`)) {
     errors.push(`HHMM in the file name is not ${hhmmOf(window)}, the start of the rotation window of start_datetime`);
   }
-  if (new Date(props.end_datetime) < start) {
-    errors.push('end_datetime is before start_datetime');
-  }
   if (props['opensensor:sample_interval_s'] * 1000 !== footer.acquisition?.sample_interval_ms) {
     errors.push('opensensor:sample_interval_s is not the footer sample_interval_ms over 1000');
   }
 
-  // The geometry is cellsToMultiPolygon of the distinct cells in ascending order, so every writer gets the same JSON.
-  const cells = [...new Set(ringsOf(doc.geometry).flatMap((polygon) => polygonToCells(polygon, RESOLUTION, true)))].sort();
-  if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), ringsOf(doc.geometry))) {
-    errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
-  }
-  const code = props['grid:code'];
-  if (code !== undefined) {
-    const cell = code.replace(/^H3-/, '');
-    if (!isValidCell(cell) || getResolution(cell) !== RESOLUTION) {
-      errors.push(`grid:code ${code} is not a resolution ${RESOLUTION} H3 cell`);
-    } else if (doc.geometry?.type !== 'Polygon' || !close(cellsToMultiPolygon([cell], true), [doc.geometry.coordinates])) {
-      errors.push('geometry is not the polygon of grid:code');
-    }
-  }
-  if (!close(doc.bbox, bboxOf(doc.geometry))) {
-    errors.push('bbox is not the bbox of the geometry');
-  }
   const covered = (collection.extent?.spatial?.bbox ?? []).some(
     (b) => b[0] <= doc.bbox[0] && b[1] <= doc.bbox[1] && b[2] >= doc.bbox[2] && b[3] >= doc.bbox[3],
   );
@@ -371,14 +236,11 @@ for (const [file, doc] of docs) {
 }
 
 const checkCatalog = (file, doc) => {
-  const errors = checkLinks(file, doc);
-  if (!(doc.links ?? []).some((l) => l.rel === 'root' && l.href === './catalog.json')) {
-    errors.push('root link is not ./catalog.json');
-  }
+  const errors = [...checkLinks(file, doc), ...shared.catalogErrors(doc)];
   const children = (doc.links ?? []).filter((l) => l.rel === 'child');
   for (const link of children) {
     if (!isRelative(link.href) || !/^\.\/thing=[0-9a-f-]{36}\/collection\.json$/.test(link.href)) {
-      errors.push(`child link ${link.href} is not ./thing=<uuid>/collection.json`);
+      continue;
     } else if (docs.get(join(dirname(file), link.href))?.type !== 'Collection') {
       errors.push(`child link ${link.href} is not a Collection`);
     }
@@ -458,14 +320,8 @@ const checkFooter = (doc) => {
 
 // The GeoParquet 2.0.0 geo key. Its bbox is over the cell centres of the located rows.
 const checkGeo = (geo, rows) => {
-  const errors = [];
-  if (geo.version !== '2.0.0' || geo.primary_column !== 'geometry') {
-    errors.push('version is not 2.0.0 or primary_column is not geometry');
-  }
+  const errors = shared.geoKeyErrors(geo);
   const column = geo.columns?.geometry ?? {};
-  if (column.encoding !== 'WKB' || JSON.stringify(column.geometry_types) !== '["Point"]' || 'crs' in column) {
-    errors.push('geometry is not WKB Point with no crs');
-  }
   const centres = (rows.h3_cell_id ?? []).filter((c) => c !== null).map((c) => cellToLatLng(c));
   if (centres.length === 0) {
     if ('bbox' in column) errors.push('a file with no located row has a bbox');
@@ -494,7 +350,47 @@ for (const name of footerFiles) {
   }
 }
 
-// 6. Broken documents must fail
+// 6. Board slugs. Every slug in use is registered, and a registered first template sits under its own slug.
+const boards = read('registry/boards.json');
+const slugOfHref = (href) => href.match(/\/([a-z0-9]+(?:-[a-z0-9]+)*)\/[0-9a-f]{64}\.json$/)?.[1];
+const slugUses = [
+  ...templateFolders,
+  ...footerFiles.flatMap((name) => [[`footers/${name}`, name.replace(/\.json$/, '')],
+    [`footers/${name} thing.board`, read(`footers/${name}`).thing?.board]]),
+  ...[...collections.values()].flatMap(([file, doc]) => describedby(doc, 'application/json')
+    .map((l) => [`${file} template link`, slugOfHref(l.href)])),
+];
+const slugErrors = (registryDoc, uses) => {
+  const errors = [...schemaErrors(registrySchema, registryDoc), ...schemaErrors(boardRegistrySchema, registryDoc)];
+  const known = registryDoc.boards ?? {};
+  for (const [where, slug] of uses) {
+    if (!Object.hasOwn(known, slug)) errors.push(`${where} uses board ${slug}, which registry/boards.json does not list`);
+  }
+  for (const [slug, entry] of Object.entries(known)) {
+    const template = templates.get(`1220${entry.first_template?.sha256}`);
+    if (!template) {
+      errors.push(`${slug} first template sha256 matches no template copy in templates/`);
+    } else if (template.board !== slug) {
+      errors.push(`${slug} first template is ${template.file}, under another board`);
+    }
+    if (entry.first_template && slugOfHref(entry.first_template.href) !== slug) {
+      errors.push(`${slug} first template href does not end in /${slug}/<sha256>.json`);
+    }
+  }
+  return errors;
+};
+report('registry/boards.json', slugErrors(boards, slugUses));
+
+// 7. The validator for outside files passes every document here.
+const regs = { registry, scaleRegistry, boards };
+const allDocuments = ['templates', 'footers', 'examples', 'registry']
+  .flatMap((dir) => readdirSync(dir, { recursive: true }).filter((n) => n.endsWith('.json')).map((n) => `${dir}/${n}`));
+for (const file of allDocuments) {
+  const { kind, errors } = shared.validateDocument(file, read(file), regs);
+  report(file, errors.map((e) => `validate.mjs ${kind}, ${e}`));
+}
+
+// 8. Broken documents must fail
 let rejected = 0;
 const mustFail = (file, what, errors, expect) => {
   const hit = expect ? errors.some((e) => e.includes(expect)) : errors.length > 0;
@@ -915,6 +811,12 @@ for (const [what, mutate] of Object.entries(brokenTemplates)) {
   mutate(doc);
   mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
 }
+{
+  // An inherited member of the scales map is not a scale the template holds.
+  const doc = structuredClone(hinted.doc);
+  columnsOf(doc).find((c) => c.name === 'pm25_mass_ug_m3')['opensensor:scale'] = 'constructor';
+  mustFail(hinted.file, 'a template with a column scale named constructor', checkTemplate(doc), 'missing scale constructor');
+}
 for (const [file, collection] of collections.values()) {
   const primary = structuredClone(collection);
   primary['opensensor:primary'] = 'pm3_mass_ug_m3';
@@ -935,6 +837,290 @@ for (const [what, mutate] of Object.entries(brokenRegistries)) {
   const doc = structuredClone(registry);
   mutate(doc);
   mustFail('registry/properties.json', `a registry with ${what}`, checkRegistry(doc, scaleRegistry));
+}
+{
+  const doc = structuredClone(registry);
+  Object.values(doc.properties)[0].scale = 'constructor';
+  mustFail('registry/properties.json', 'a registry with a default scale named constructor', checkRegistry(doc, scaleRegistry),
+    'scale constructor, which registry/scales.json does not have');
+}
+const brokenBoards = {
+  'a template folder it does not list': (doc, uses) => uses.push(['templates/acme-probe/x.json', 'acme-probe']),
+  'a footer board it does not list': (doc, uses) => uses.push(['footers/x.json thing.board', 'cores3']),
+  'a slug with an upper case letter': (doc) => {
+    doc.boards['M5stack-cores3'] = doc.boards['m5stack-cores3'];
+  },
+  'a slug with an underscore': (doc) => {
+    doc.boards.acme_probe = doc.boards['m5stack-cores3'];
+  },
+  'an entry with no home': (doc) => {
+    delete doc.boards['m5stack-cores3'].home;
+  },
+  'a home that is not https': (doc) => {
+    doc.boards['m5stack-cores3'].home = 'http://example.com/templates/m5stack-cores3';
+  },
+  'a first template of another board': (doc) => {
+    doc.boards['m5stack-cores3'].first_template = doc.boards['waveshare-esp32-s3-sim7670g'].first_template;
+  },
+  'a first template that is not a SHA-256': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.sha256 = 'cores3';
+  },
+  'a first template with no copy in templates/': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.sha256 = '0'.repeat(64);
+  },
+  'a first template on a GitHub branch': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/');
+  },
+  'a slug with no model': (doc) => {
+    doc.boards.acme = doc.boards['m5stack-cores3'];
+  },
+  'a template folder named after an Object member': (doc, uses) => uses.push(['templates/constructor/x.json', 'constructor']),
+};
+for (const [what, mutate] of Object.entries(brokenBoards)) {
+  const doc = structuredClone(boards);
+  const uses = [...slugUses];
+  mutate(doc, uses);
+  mustFail('registry/boards.json', `a board registry with ${what}`, slugErrors(doc, uses));
+}
+// A moving Item has no grid:code, so only its geometry shows the resolution.
+const [movingFile, movingItem] = itemOf('moving');
+const movingPolygons = movingItem.geometry.type === 'Polygon' ? [movingItem.geometry.coordinates] : movingItem.geometry.coordinates;
+const movingCells = [...new Set(movingPolygons.flatMap((p) => polygonToCells(p, RESOLUTION, true)))];
+for (const [what, cells] of Object.entries({
+  'resolution 7 cells': [...new Set(movingCells.map((c) => cellToParent(c, 7)))],
+  'resolution 9 cells': movingCells.map((c) => cellToCenterChild(c, 9)),
+})) {
+  const doc = structuredClone(movingItem);
+  doc.geometry = geometryOf(cells);
+  doc.bbox = bboxOf(doc.geometry);
+  mustFail(movingFile, `validate.mjs with a moving Item built from ${what}`,
+    shared.validateDocument(movingFile, doc, regs).errors, `union of resolution ${RESOLUTION}`);
+}
+{
+  // An end a microsecond before the start, in the same millisecond, fails. The same instant passes this check.
+  const doc = structuredClone(movingItem);
+  doc.properties.start_datetime = '2026-10-24T13:00:00.412305Z';
+  doc.properties.end_datetime = '2026-10-24T13:00:00.412304Z';
+  mustFail(movingFile, 'validate.mjs with an end a microsecond before the start',
+    shared.validateDocument(movingFile, doc, regs).errors, 'end_datetime is before start_datetime');
+  doc.properties.start_datetime = '2026-10-24t13:00:00.412305z';
+  doc.properties.end_datetime = '2026-10-24t13:00:00.412304z';
+  mustFail(movingFile, 'validate.mjs with an end a microsecond before the start, with a lowercase t',
+    shared.validateDocument(movingFile, doc, regs).errors, 'end_datetime is before start_datetime');
+  // The same instant written three ways passes, whatever the case of the t and the number of trailing zeros.
+  for (const [start, end] of [
+    ['2026-10-24T13:00:00.412305Z', '2026-10-24T13:00:00.4123050Z'],
+    ['2026-10-24T13:00:00.412305Z', '2026-10-24t13:00:00.412305Z'],
+    ['2026-10-24T13:00:00.4123050000000Z', '2026-10-24T13:00:00.412305Z'],
+  ]) {
+    doc.properties.start_datetime = start;
+    doc.properties.end_datetime = end;
+    const same = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('before start_datetime'));
+    report(movingFile, same.map((e) => `an end ${end} equal to the start ${start} fails, ${e}`));
+  }
+}
+// The cell that holds a pole, and the cells round it, rebuild from a ring that goes round the pole.
+for (const lat of [90, -90]) {
+  const pole = latLngToCell(lat, 0, RESOLUTION);
+  for (const [what, cells] of [[`the cell ${pole} at ${lat}`, [pole]], [`the 7 cells round ${pole}`, gridDisk(pole, 1)]]) {
+    const doc = structuredClone(movingItem);
+    doc.geometry = geometryOf(cells);
+    doc.bbox = bboxOf(doc.geometry);
+    const union = shared.validateDocument(movingFile, doc, regs).errors.filter((e) => e.includes('union of resolution'));
+    report(movingFile, union.map((e) => `a moving Item of ${what} fails, ${e}`));
+  }
+}
+const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
+mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
+// Geometries that once made the cell check slow or ran it out of memory. Each must be rejected within 2 s.
+const subdivided = (n) => {
+  const corners = [[0, 0], [20, 0], [20, 20], [0, 20]];
+  const ring = corners.flatMap(([x, y], k) => {
+    const [x2, y2] = corners[(k + 1) % 4];
+    return Array.from({ length: n }, (_, i) => [x + ((x2 - x) * i) / n, y + ((y2 - y) * i) / n]);
+  });
+  return [...ring, ring[0]];
+};
+const zigzag = (n) => {
+  const up = Array.from({ length: n + 1 }, (_, i) => [(2 * i) / n, (2 * i) / n + (i % 2 ? 0.002 : 0)]);
+  const down = Array.from({ length: n + 1 }, (_, i) => [(2 * (n - i)) / n + 0.004, (2 * (n - i)) / n]);
+  return [...up, ...down, up[0]];
+};
+const geometryChild = `
+import { readFileSync } from 'node:fs';
+import { loadRegistries, validateDocument } from ${JSON.stringify(new URL('./checks.mjs', import.meta.url).href)};
+const { file, doc } = JSON.parse(readFileSync(0, 'utf8'));
+const regs = loadRegistries();
+const started = Date.now();
+const { errors } = validateDocument(file, doc, regs);
+console.log(JSON.stringify({ errors, ms: Date.now() - started }));
+`;
+const disk = (k) => geometryOf(gridDisk(latLngToCell(30, 31, RESOLUTION), k));
+for (const [what, geometry] of [
+  ['a region-size rectangle', { type: 'Polygon', coordinates: [[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]] }],
+  ['a region-size rectangle whose edges are cut into 649 positions', { type: 'Polygon', coordinates: [subdivided(162)] }],
+  ['a thin zigzag of 40003 positions', { type: 'Polygon', coordinates: [zigzag(20000)] }],
+  [`a union of ${gridDisk(latLngToCell(30, 31, RESOLUTION), 60).length} cells, more than MAX_CELLS`, disk(60)],
+]) {
+  // Each case runs in its own process, so one that stalls or runs out of memory is killed and reported, and the
+  // next case still runs. The child times the check itself, so its start up does not count against the 2 s, and
+  // the 60 s kill only catches a stall on a busy machine.
+  const doc = structuredClone(movingItem);
+  doc.geometry = geometry;
+  doc.bbox = bboxOf(geometry);
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
+    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 60000, maxBuffer: 1 << 24,
+  });
+  let out;
+  try {
+    out = child.status === 0 ? JSON.parse(child.stdout) : undefined;
+  } catch {
+    out = undefined;
+  }
+  if (out === undefined) {
+    report(movingFile, [`validate.mjs with ${what} did not finish, ${child.error?.message ?? child.signal ?? child.stderr}`]);
+  } else {
+    mustFail(movingFile, `validate.mjs with ${what}`, out.errors, `union of resolution ${RESOLUTION}`);
+    if (out.ms > 2000) report(movingFile, [`${what} took ${out.ms} ms to reject, more than 2 s`]);
+  }
+}
+{
+  // A closed ring of more positions than MAX_POSITIONS is refused before any cell is computed.
+  const n = 100000;
+  const ring = Array.from({ length: n }, (_, i) => [Math.cos((2 * Math.PI * i) / n), Math.sin((2 * Math.PI * i) / n)]);
+  const doc = structuredClone(movingItem);
+  doc.geometry = { type: 'Polygon', coordinates: [[...ring, ring[0]]] };
+  // The ring is the unit circle. bboxOf would spread 100001 positions into Math.min.
+  doc.bbox = [-1, -1, 1, 1];
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', geometryChild], {
+    input: JSON.stringify({ file: movingFile, doc }), encoding: 'utf8', timeout: 60000, maxBuffer: 1 << 26,
+  });
+  let out;
+  try {
+    out = child.status === 0 ? JSON.parse(child.stdout) : undefined;
+  } catch {
+    out = undefined;
+  }
+  if (out === undefined) {
+    report(movingFile, [`validate.mjs with a ring of ${n + 1} positions did not finish, ${child.error?.message ?? child.signal ?? child.stderr}`]);
+  } else {
+    mustFail(movingFile, `validate.mjs with a ring of ${n + 1} positions`, out.errors, 'positions, so it is not a union');
+    if (out.ms > 2000) report(movingFile, [`a ring of ${n + 1} positions took ${out.ms} ms to reject, more than 2 s`]);
+  }
+}
+{
+  // A ring whose last position is not its first.
+  const doc = structuredClone(movingItem);
+  const ring = disk(1).coordinates[0];
+  doc.geometry = { type: 'Polygon', coordinates: [[...ring.slice(0, -1), ring[1]]] };
+  doc.bbox = bboxOf(doc.geometry);
+  mustFail(movingFile, 'validate.mjs with a ring that is not closed', shared.validateDocument(movingFile, doc, regs).errors,
+    'closed rings');
+}
+{
+  const doc = structuredClone(catalog);
+  doc.links.find((l) => l.rel === 'root').href = './other.json';
+  mustFail(catalogFile, 'validate.mjs with a Catalog whose root is not itself', shared.validateDocument(catalogFile, doc, regs).errors,
+    'root link is not ./catalog.json');
+}
+for (const [what, kind, mutate, expect] of [
+  ['Collection with table:columns as an object', 'Collection', (doc) => { doc.item_assets.data['table:columns'] = {}; }],
+  ['template with links as an object', 'OpenSensorTemplate', (doc) => { doc.links = {}; }],
+  ['Item with a null geometry', 'Feature', (doc) => { doc.geometry = null; }],
+  ['Item with a Polygon without coordinates', 'Feature', (doc) => { doc.geometry = { type: 'Polygon' }; }],
+  ['Item with a MultiPolygon of bare numbers', 'Feature', (doc) => { doc.geometry = { type: 'MultiPolygon', coordinates: [1, 2] }; }],
+  ['Item with a numeric grid:code', 'Feature', (doc) => { doc.properties['grid:code'] = 8; }],
+  ['template with a null link first', 'OpenSensorTemplate', (doc) => { doc.links.unshift(null); }],
+  ['Collection with a sample interval of 0', 'Collection', (doc) => { doc['opensensor:sample_interval_s'] = 0; }],
+  ['Collection with derived.from as an object', 'Collection', (doc) => {
+    doc.item_assets.data['table:columns'][0]['opensensor:derived'] = {
+      from: {}, method: 'urn:walkthru-earth:method:airgradient_20260408_count_candidate_v1',
+    };
+  }, '/from'],
+  ['Catalog with a child href in an array', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = [link.href];
+  }],
+  ['Catalog with a child that is not a UUID', 'Catalog', (doc) => {
+    // 36 lowercase hex digits without hyphens, the length of a UUID but not its form.
+    doc.links.find((l) => l.rel === 'child').href = `./thing=${'0123456789abcdef'.repeat(3).slice(0, 36)}/collection.json`;
+  }],
+  ['Catalog with a child link without ./', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = link.href.replace(/^\.\//, '');
+  }, 'is not ./thing=<uuid>/collection.json'],
+  ['Catalog with a child UUID in capitals', 'Catalog', (doc) => {
+    const link = doc.links.find((l) => l.rel === 'child');
+    link.href = link.href.toUpperCase().replace('./THING=', './thing=').replace('/COLLECTION.JSON', '/collection.json');
+  }],
+]) {
+  const [file, source] = [...docs, ...[...templates.values()].map((t) => [t.file, read(t.file)])]
+    .find(([, doc]) => doc.type === kind);
+  const doc = structuredClone(source);
+  mutate(doc);
+  let errors;
+  try {
+    ({ errors } = shared.validateDocument(file, doc, regs));
+  } catch (e) {
+    errors = [];
+    report(file, [`validate.mjs threw on a ${what}, ${e.message}`]);
+  }
+  mustFail(file, `validate.mjs with a ${what}`, errors, expect);
+}
+{
+  // A coordinate column may leave out its property, so the registry is not asked for one.
+  const [file, source] = [...docs].find(([, doc]) => doc.type === 'Collection');
+  const doc = structuredClone(source);
+  for (const column of shared.columnsOf(doc).filter((c) => c.roles?.includes('coordinate'))) delete column['opensensor:property'];
+  report(file, shared.validateDocument(file, doc, regs).errors.map((e) => `with a coordinate column without a property, ${e}`));
+}
+{
+  // The dictionary link is the text/plain describedby link, wherever it sits.
+  const { file } = [...templates.values()][0];
+  const doc = read(file);
+  doc.links.unshift({ rel: 'describedby', href: 'https://example.com/readme.html', type: 'text/html' });
+  report(file, shared.validateDocument(file, doc, regs).errors.map((e) => `with a second describedby link first, ${e}`));
+}
+{
+  // The command line. A wrong or missing digest fails, and a digest in capitals still matches.
+  const { file } = [...templates.values()][0];
+  const digest = sha256(file);
+  // validate.mjs resolves its arguments against INIT_CWD, which npm sets, so pin it to this directory.
+  const run = (...args) => spawnSync(process.execPath, ['scripts/validate.mjs', ...args], {
+    encoding: 'utf8', env: { ...process.env, INIT_CWD: process.cwd() },
+  });
+  const wrong = run('--sha256', '0'.repeat(64), file);
+  mustFail(file, 'validate.mjs with a wrong --sha256', wrong.status === 1 ? [wrong.stdout] : [],
+    'SHA-256 of the bytes is');
+  const bare = run(file, '--sha256');
+  mustFail(file, 'validate.mjs with --sha256 and no digest', bare.status === 2 ? [bare.stderr] : [], 'usage');
+  const upper = run('--sha256', digest.toUpperCase(), file);
+  if (upper.status !== 0) report(file, [`validate.mjs rejected the digest in capitals, ${upper.stdout}${upper.stderr}`]);
+  const unchecked = run('--json', catalogFile, 'x-missing.json');
+  const results = unchecked.status === 1 ? JSON.parse(unchecked.stdout) : [];
+  const [first, second] = results;
+  if (results.length !== 2 || first.file !== catalogFile || first.kind !== 'catalog' || first.errors.length > 0
+    || second.file !== 'x-missing.json' || second.kind !== 'unreadable' || !/ENOENT/.test(second.errors.join())) {
+    report(catalogFile, [`validate.mjs did not report each file, ${unchecked.stdout}${unchecked.stderr}`]);
+  }
+  const footerFile = `footers/${footerFiles[0]}`;
+  const footerOnly = run('--sha256', digest, footerFile);
+  mustFail(footerFile, 'validate.mjs with --sha256 and only a footer', footerOnly.status === 1 ? [footerOnly.stderr] : [],
+    'no file is a template');
+  const footerPlain = run(footerFile);
+  if (footerPlain.status !== 0) report(footerFile, [`validate.mjs rejected a footer, ${footerPlain.stdout}`]);
+  // A relative argument resolves against INIT_CWD, not the directory the command runs in.
+  const elsewhere = mkdtempSync(join(tmpdir(), 'validate-'));
+  try {
+    copyFileSync(catalogFile, join(elsewhere, 'sample.json'));
+    const moved = spawnSync(process.execPath, ['scripts/validate.mjs', './sample.json'], {
+      encoding: 'utf8', env: { ...process.env, INIT_CWD: elsewhere },
+    });
+    if (moved.status !== 0) report(catalogFile, [`validate.mjs did not read ./sample.json from INIT_CWD, ${moved.stdout}${moved.stderr}`]);
+  } finally {
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
 }
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;

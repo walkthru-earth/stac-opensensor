@@ -38,6 +38,7 @@ It only defines what STAC core and existing extensions do not already cover, see
 - [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json),
   [footer](json-schema/footer.json) and [registry](json-schema/registry.json) schemas
 - [Property registry](registry/properties.json) and [scale registry](registry/scales.json), see [Property registry](#property-registry)
+- [Board registry](registry/boards.json) lists every board slug, see [CONTRIBUTING.md](CONTRIBUTING.md)
 - [Decision register](docs/decisions.md) lists what was decided and what is still open
 - [Overlap review](docs/overlap-review-2026-10-25.md) explains why each field exists or was left out
 - [Changelog](./CHANGELOG.md)
@@ -220,6 +221,9 @@ Proposals to fix that upstream are
 
 ## Contributing
 
+To add a board or a sensor, follow [CONTRIBUTING.md](CONTRIBUTING.md). It covers the board slug, the template,
+the property registry, scales, the setup manifest and the checks.
+
 All contributions are subject to the
 [STAC Specification Code of Conduct](https://github.com/radiantearth/stac-spec/blob/master/CODE_OF_CONDUCT.md).
 For contributions, please follow the
@@ -250,6 +254,31 @@ Both need network, so `npm test` leaves them out.
 To format the examples, run `npm run format-examples`.
 To check a writer, `npm run canonical -- item <file.parquet>` prints the canonical Item of a board data file,
 and `npm run canonical -- compare <a.json> <b.json>` lists where two Items differ.
+
+### Validating your own files
+
+`npm run validate` checks files from outside this repository, one at a time, with the single document OpenSensor
+checks of `npm test`. It does not run `stac-node-validator`, the Markdown checks or the checks that join documents,
+such as an Item against its Collection. Run `stac-node-validator` too for STAC core.
+It knows templates, footers, GeoParquet `geo` keys, Collections, Items, Catalogs and the registries by their content.
+For a Catalog it checks its root link and the form of its child links, not that each child exists.
+An Item geometry must be the union of at most 10000 resolution 8 cells, every position a cell corner.
+That cap comes from a writer rule in [PROFILE.md](PROFILE.md), one file covers at most one hour, so 10000 cells is
+more than one fix per second for the whole file. `npm run validate` does not check the hour.
+
+```bash
+npm run validate -- --sha256 "$TEMPLATE_SHA256" path/to/template.json
+npm run --silent validate -- --json path/to/collection.json path/to/item.json > report.json
+```
+
+`TEMPLATE_SHA256` is the 64 hex digest the device or the footer names, and `--sha256` compares the template's bytes
+with it. `--json` prints a report for CI, and `--silent` keeps npm's banner out of it.
+From another directory run `npm --prefix /path/to/checkout run validate -- ./sample.json`, and `./sample.json` is read
+from that directory.
+The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error. It is also 1 when `--sha256`
+is given and no file is a template, since no digest was compared. A footer that passes without `--sha256` exits 0.
+Checks that join documents, such as an Item against its Collection, and STAC core validation stay in `npm test`
+and `stac-node-validator`.
 
 ## Releasing
 
