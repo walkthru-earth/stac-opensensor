@@ -116,9 +116,10 @@ export const manifestErrors = (firmware) => {
 
 // A board template on its own. The dictionary link must carry the digest the firmware block names.
 export const checkTemplate = (doc, { registry, scaleRegistry }) => {
-  const errors = [...schemaErrors(schemas.template, doc), ...hintErrors(doc, scaleRegistry), ...registryErrors(doc, registry),
-    ...manifestErrors(doc.firmware)];
-  const dictLink = doc.links?.find((l) => l.rel === 'describedby');
+  const schema = schemaErrors(schemas.template, doc);
+  if (schema.length > 0) return schema;
+  const errors = [...hintErrors(doc, scaleRegistry), ...registryErrors(doc, registry), ...manifestErrors(doc.firmware)];
+  const dictLink = doc.links?.find((l) => l.rel === 'describedby' && l.type === 'text/plain');
   if (dictLink?.['file:checksum'] !== `1220${doc.firmware?.dict}`) {
     errors.push('describedby file:checksum does not match firmware.dict');
   }
@@ -164,12 +165,31 @@ const ringsOf = (geometry) => {
   return [];
 };
 
+// A union of n resolution 8 cells has a boundary of at least about the square root of 48n vertices, so a polygon
+// whose bounds hold far more cells than its vertex count allows is not one. This rejects it before polygonToCells
+// fills its bounds. Polygons that pass still face the exact comparison.
+const CELL_KM2 = 0.737;
+const KM_PER_DEGREE = 111.32;
+const tooLargeForItsBoundary = (polygons) => polygons.some((rings) => {
+  const ring = rings[0] ?? [];
+  const lngs = ring.map((p) => p[0]);
+  const lats = ring.map((p) => p[1]);
+  const midLat = ((Math.max(...lats) + Math.min(...lats)) / 2) * (Math.PI / 180);
+  const km2 = (Math.max(...lats) - Math.min(...lats)) * KM_PER_DEGREE
+    * (Math.max(...lngs) - Math.min(...lngs)) * KM_PER_DEGREE * Math.max(Math.cos(midLat), 0.01);
+  const vertices = rings.reduce((sum, r) => sum + r.length, 0);
+  return km2 / CELL_KM2 > 16 * vertices * vertices + 10000;
+});
+
 // The geometry of a File Item is cellsToMultiPolygon of its distinct resolution 8 cells in ascending order,
 // so every writer gets the same JSON. A fixed Item is the one polygon of its grid:code.
 export const geometryErrors = (doc) => {
   const errors = [];
-  const cells = [...new Set(ringsOf(doc.geometry).flatMap((polygon) => polygonToCells(polygon, RESOLUTION, true)))].sort();
-  if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), ringsOf(doc.geometry))) {
+  const polygons = ringsOf(doc.geometry);
+  const cells = tooLargeForItsBoundary(polygons)
+    ? []
+    : [...new Set(polygons.flatMap((polygon) => polygonToCells(polygon, RESOLUTION, true)))].sort();
+  if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), polygons)) {
     errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
   }
   const code = doc.properties?.['grid:code'];
@@ -189,7 +209,9 @@ export const geometryErrors = (doc) => {
 
 // A File Item on its own. Its id is its file name and its data sits beside it.
 export const itemErrors = (file, doc) => {
-  const errors = [...schemaErrors(schemas.profile, doc), ...geometryErrors(doc)];
+  const schema = schemaErrors(schemas.profile, doc);
+  if (schema.length > 0) return schema;
+  const errors = geometryErrors(doc);
   const stem = basename(file, '.json');
   if (doc.id !== stem) {
     errors.push(`id ${doc.id} is not the file name ${stem}`);
@@ -229,18 +251,42 @@ export const kindOf = (doc) => {
   return 'unknown';
 };
 
+// A Catalog on its own. The profile schema covers Collections and Items only, and stac-node-validator covers STAC
+// core, so this checks what the profile adds. Its root is itself and each child is a thing= Collection beside it.
+// That each child exists and that every Collection is listed needs the other documents, so check-profile.mjs checks that.
+export const catalogErrors = (doc) => {
+  if (!Array.isArray(doc.links)) return ['links is not an array'];
+  const links = doc.links;
+  const errors = [];
+  for (const key of ['id', 'description']) {
+    if (typeof doc[key] !== 'string' || doc[key] === '') errors.push(`${key} is not a non-empty string`);
+  }
+  if (!links.some((l) => l?.rel === 'root' && l.href === './catalog.json')) {
+    errors.push('root link is not ./catalog.json');
+  }
+  for (const link of links.filter((l) => l?.rel === 'child')) {
+    if (!/^\.\/thing=[0-9a-f-]{36}\/collection\.json$/.test(link.href)) {
+      errors.push(`child link ${link.href} is not ./thing=<uuid>/collection.json`);
+    }
+  }
+  return errors;
+};
+
+// The schema first, since the other checks of a kind assume its shape.
+const afterSchema = (schema, checks) => (schema.length > 0 ? schema : checks());
+
 // Every single document check, picked by kind. Checks that join documents stay in check-profile.mjs.
 export const validateDocument = (file, doc, regs) => {
   const kind = kindOf(doc);
   const errors = {
     template: () => checkTemplate(doc, regs),
-    registry: () => [...schemaErrors(schemas.registry, doc), ...(doc.type === 'OpenSensorPropertyRegistry'
-      ? checkRegistry(doc, regs.scaleRegistry) : [])],
+    registry: () => afterSchema(schemaErrors(schemas.registry, doc), () => (doc.type === 'OpenSensorPropertyRegistry'
+      ? checkRegistry(doc, regs.scaleRegistry) : [])),
     'board registry': () => schemaErrors(schemas.boardRegistry, doc),
-    collection: () => [...schemaErrors(schemas.profile, doc), ...hintErrors(doc, regs.scaleRegistry), ...columnErrors(doc),
-      ...registryErrors(doc, regs.registry)],
+    collection: () => afterSchema(schemaErrors(schemas.profile, doc), () => [...hintErrors(doc, regs.scaleRegistry),
+      ...columnErrors(doc), ...registryErrors(doc, regs.registry)]),
     item: () => itemErrors(file, doc),
-    catalog: () => [],
+    catalog: () => catalogErrors(doc),
     footer: () => schemaErrors(schemas.footer, doc),
     'geo key': () => geoKeyErrors(doc),
     unknown: () => ['not a template, registry, Collection, Item, Catalog, footer or geo key'],

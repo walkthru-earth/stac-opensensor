@@ -13,6 +13,7 @@
 // 7. scripts/validate.mjs passes every document of this repository on its own.
 // 8. Broken documents must fail, so the checks above cannot pass by accident.
 import { readdirSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, basename } from 'node:path';
 import {
   polygonToCells, cellsToMultiPolygon, cellToLatLng, cellToParent, cellToCenterChild, getResolution, isValidCell,
@@ -233,14 +234,11 @@ for (const [file, doc] of docs) {
 }
 
 const checkCatalog = (file, doc) => {
-  const errors = checkLinks(file, doc);
-  if (!(doc.links ?? []).some((l) => l.rel === 'root' && l.href === './catalog.json')) {
-    errors.push('root link is not ./catalog.json');
-  }
+  const errors = [...checkLinks(file, doc), ...shared.catalogErrors(doc)];
   const children = (doc.links ?? []).filter((l) => l.rel === 'child');
   for (const link of children) {
     if (!isRelative(link.href) || !/^\.\/thing=[0-9a-f-]{36}\/collection\.json$/.test(link.href)) {
-      errors.push(`child link ${link.href} is not ./thing=<uuid>/collection.json`);
+      continue;
     } else if (docs.get(join(dirname(file), link.href))?.type !== 'Collection') {
       errors.push(`child link ${link.href} is not a Collection`);
     }
@@ -887,6 +885,65 @@ for (const [what, cells] of Object.entries({
 }
 const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
 mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
+{
+  // A region-size rectangle is rejected before polygonToCells fills its bounds.
+  const doc = structuredClone(movingItem);
+  doc.geometry = { type: 'Polygon', coordinates: [[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]] };
+  doc.bbox = [0, 0, 20, 20];
+  const started = Date.now();
+  const { errors } = shared.validateDocument(movingFile, doc, regs);
+  mustFail(movingFile, 'validate.mjs with a region-size rectangle', errors, `union of resolution ${RESOLUTION}`);
+  if (Date.now() - started > 2000) report(movingFile, ['a region-size rectangle took more than 2 s to reject']);
+}
+{
+  const doc = structuredClone(catalog);
+  doc.links.find((l) => l.rel === 'root').href = './other.json';
+  mustFail(catalogFile, 'validate.mjs with a Catalog whose root is not itself', shared.validateDocument(catalogFile, doc, regs).errors,
+    'root link is not ./catalog.json');
+}
+for (const [what, kind, mutate] of [
+  ['Collection with table:columns as an object', 'Collection', (doc) => { doc.item_assets.data['table:columns'] = {}; }],
+  ['template with links as an object', 'OpenSensorTemplate', (doc) => { doc.links = {}; }],
+  ['Item with a null geometry', 'Feature', (doc) => { doc.geometry = null; }],
+]) {
+  const [file, source] = [...docs, ...[...templates.values()].map((t) => [t.file, read(t.file)])]
+    .find(([, doc]) => doc.type === kind);
+  const doc = structuredClone(source);
+  mutate(doc);
+  let errors;
+  try {
+    ({ errors } = shared.validateDocument(file, doc, regs));
+  } catch (e) {
+    errors = [];
+    report(file, [`validate.mjs threw on a ${what}, ${e.message}`]);
+  }
+  mustFail(file, `validate.mjs with a ${what}`, errors);
+}
+{
+  // The dictionary link is the text/plain describedby link, wherever it sits.
+  const { file } = [...templates.values()][0];
+  const doc = read(file);
+  doc.links.unshift({ rel: 'describedby', href: 'https://example.com/readme.html', type: 'text/html' });
+  report(file, shared.validateDocument(file, doc, regs).errors.map((e) => `with a second describedby link first, ${e}`));
+}
+{
+  // The command line. A wrong or missing digest fails, and a digest in capitals still matches.
+  const { file } = [...templates.values()][0];
+  const digest = sha256(file);
+  const run = (...args) => spawnSync(process.execPath, ['scripts/validate.mjs', ...args], { encoding: 'utf8' });
+  const wrong = run('--sha256', '0'.repeat(64), file);
+  mustFail(file, 'validate.mjs with a wrong --sha256', wrong.status === 1 ? [wrong.stdout] : [],
+    'SHA-256 of the bytes is');
+  const bare = run(file, '--sha256');
+  mustFail(file, 'validate.mjs with --sha256 and no digest', bare.status === 2 ? [bare.stderr] : [], 'usage');
+  const upper = run('--sha256', digest.toUpperCase(), file);
+  if (upper.status !== 0) report(file, [`validate.mjs rejected the digest in capitals, ${upper.stdout}${upper.stderr}`]);
+  const unchecked = run('--json', catalogFile, 'x-missing.json');
+  const results = unchecked.status === 1 ? JSON.parse(unchecked.stdout) : [];
+  if (results.length !== 2 || results[0].errors.length > 0) {
+    report(catalogFile, [`validate.mjs did not report each file, ${unchecked.stdout}${unchecked.stderr}`]);
+  }
+}
 const noPeriod = structuredClone(scaleRegistry);
 delete noPeriod.scales['who-2021-pm10'].period;
 mustFail('registry/scales.json', 'a scale registry with a scale that has no period', checkRegistry(registry, noPeriod));

@@ -1,47 +1,60 @@
 #!/usr/bin/env node
-// Validates OpenSensor JSON documents one at a time, with the same checks npm test runs on this repository.
-//   npm run validate -- [--json] [--sha256 <64 hex>] <file.json>...
+// Validates OpenSensor JSON documents one at a time, with the single document checks npm test runs on this repository.
+// The checks that join documents, the Markdown checks and stac-node-validator stay in npm test.
+//   npm run --silent validate -- [--json] [--sha256 <64 hex>] <file.json>...
 // It finds the kind of each file from its content. Templates, footers, geo keys, Collections, Items, Catalogs and the
 // registries are known. Run stac-node-validator too for STAC core and the other extensions.
+// A relative path is read from the directory npm was started in, so npm --prefix <checkout> works from anywhere.
 // --sha256 compares the bytes of each template with the digest the device or the footer names.
 // The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 import { loadRegistries, validateDocument } from './checks.mjs';
 
 const usage = 'usage: npm run validate -- [--json] [--sha256 <64 hex>] <file.json>...';
 const args = process.argv.slice(2);
 const json = args.includes('--json');
 let digest;
+let bad = false;
 const files = [];
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === '--json') continue;
   if (args[i] === '--sha256') {
-    digest = args[i + 1];
+    // A present flag needs its digest. Leaving the flag out is fine, a flag with no digest is a usage error.
+    const operand = args[i + 1];
+    if (operand === undefined || !/^[0-9a-fA-F]{64}$/.test(operand)) bad = true;
+    else digest = operand.toLowerCase();
     i += 1;
   } else if (args[i].startsWith('-')) {
-    files.length = 0;
-    break;
+    bad = true;
   } else {
     files.push(args[i]);
   }
 }
-if (files.length === 0 || (digest !== undefined && !/^[0-9a-f]{64}$/.test(digest))) {
+if (bad || files.length === 0) {
   console.error(usage);
   process.exit(2);
 }
+const from = process.env.INIT_CWD ?? process.cwd();
 
 const regs = loadRegistries();
 const results = files.map((file) => {
   let bytes;
   let doc;
   try {
-    bytes = readFileSync(file);
+    bytes = readFileSync(resolve(from, file));
     doc = JSON.parse(bytes.toString('utf8'));
   } catch (e) {
     return { file, kind: 'unreadable', errors: [e.message] };
   }
-  const { kind, errors } = validateDocument(file, doc, regs);
+  let checked;
+  try {
+    checked = validateDocument(file, doc, regs);
+  } catch (e) {
+    return { file, kind: 'unchecked', errors: [`the validator failed on this file, ${e.message}`] };
+  }
+  const { kind, errors } = checked;
   const result = { file, kind, errors };
   if (kind === 'template') {
     result.sha256 = createHash('sha256').update(bytes).digest('hex');
@@ -61,4 +74,4 @@ if (json) {
     for (const e of errors) console.log(`  ${e}`);
   }
 }
-process.exit(results.some((r) => r.errors.length > 0) ? 1 : 0);
+process.exitCode = results.some((r) => r.errors.length > 0) ? 1 : 0;

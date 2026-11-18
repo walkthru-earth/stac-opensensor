@@ -252,16 +252,21 @@ To format the examples, run `npm run format-examples`.
 
 ### Validating your own files
 
-`npm run validate` checks files from outside this repository, one at a time, with the same rules as `npm test`.
+`npm run validate` checks files from outside this repository, one at a time, with the single document OpenSensor
+checks of `npm test`. It does not run `stac-node-validator`, the Markdown checks or the checks that join documents,
+such as an Item against its Collection. Run `stac-node-validator` too for STAC core.
 It knows templates, footers, GeoParquet `geo` keys, Collections, Items, Catalogs and the registries by their content.
+For a Catalog it checks its root link and the form of its child links, not that each child exists.
 
 ```bash
-npm run validate -- --sha256 <template sha256> path/to/template.json
-npm run validate -- --json path/to/collection.json path/to/item.json
+npm run validate -- --sha256 "$TEMPLATE_SHA256" path/to/template.json
+npm run --silent validate -- --json path/to/collection.json path/to/item.json > report.json
 ```
 
-`--sha256` compares a template's bytes with the digest the device or the footer names. `--json` prints a report for CI.
-The exit code is 0 when every file passes and 1 when one fails.
+`TEMPLATE_SHA256` is the 64 hex digest the device or the footer names, and `--sha256` compares the template's bytes
+with it. `--json` prints a report for CI, and `--silent` keeps npm's banner out of it.
+From another directory run `npm --prefix /path/to/checkout run validate -- <file>...`.
+The exit code is 0 when every file passes, 1 when one fails and 2 on a usage error.
 Checks that join documents, such as an Item against its Collection, and STAC core validation stay in `npm test`
 and `stac-node-validator`.
 
