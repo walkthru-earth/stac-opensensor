@@ -70,6 +70,9 @@ thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.json    its Item, same name
 templates/<board>/<template sha256>.json              optional template mirror
 ```
 
+Each child link href is `./thing=<uuid>/collection.json`, with the `./` and the UUID in lower case, so every
+catalog host writes the same link.
+
 `<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
 `HHMM` is the UTC start of the rotation window that holds the earliest row, and `<boot>` is the 32 hex boot id from the footer.
 The earliest row is the one with the smallest `event_time_utc_us`, so rows need not be stored in time order.
@@ -165,10 +168,13 @@ The board fills the Thing Collection from four sources.
 | Source | Fields |
 | --- | --- |
 | Template | `item_assets.data` columns with their display hints, `table:primary_datetime`, `table:primary_geometry`, `keywords`, `instruments`, `opensensor:sample_interval_s`, `opensensor:primary`, `opensensor:scales`, the dictionary link |
-| Footer of the file with the latest window start | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
+| Footer of the latest file | `id` from `thing.id`, `opensensor:mobility`, the template link `href` and `file:checksum` |
 | Upload ledger | `extent`, the union of uploaded Item boxes and the earliest uploaded `start_datetime` |
 | Owner config | `title`, `description`, `providers`, contacts, the bucket and prefix in `partition:glob`, column display hints, `opensensor:primary`, `opensensor:scales` |
 
+The latest file is the one with the latest window start. A reboot or a firmware update can leave two files in one window,
+and their footers can name different templates. Then the one with the latest `end_datetime` wins,
+then the greater file name in byte order, so the board and an indexer take the same footer.
 The owner sets the owner config at setup, and the board stores it. Everything else is fixed by this profile.
 A board never shrinks `extent`. It keeps the ledger summary, the first start time and the union box, in NVS,
 so an SD card swap or a lost ledger file does not reset it.
@@ -312,9 +318,12 @@ A user's own overrides, such as a renamed card or a hidden column, stay in the a
 
 ### Property registry
 
-[registry/properties.json](registry/properties.json) holds one entry per `opensensor:property` URI that a bundled template uses.
-Each entry has a `label`, `short_label` and `definition` in English, with Arabic only where the term is checked,
-an optional `symbol`, the `group`, the UCUM `unit` the templates use, default `decimals` and a default `scale`.
+[registry/properties.json](registry/properties.json) holds one entry per `opensensor:property` URI that a bundled template uses,
+and entries for common measurements a new board may use, such as air pressure and NO2.
+Each entry has a `label` and `definition` in English, and may have a `short_label`. Every `short_label` present has Arabic,
+and so does the `label` of each measurement a card shows, such as temperature, PM2.5, CO2 and battery charge.
+Diagnostic and device labels stay English.
+It also has an optional `symbol`, the `group`, an optional ASCII UCUM `unit` the templates use, default `decimals` and an optional default `scale`.
 [registry/scales.json](registry/scales.json) holds the shared scales by id.
 Both validate against [json-schema/registry.json](json-schema/registry.json).
 The [Publish JSON Schema](.github/workflows/publish.yaml) workflow serves them beside the schemas,
@@ -365,7 +374,7 @@ and is found only by listing the partition.
 | Geometry is never a device position, a cell centre or a track | MUST |
 | `bbox` is the bounding box of the geometry | MUST |
 | `anon:size` is `0.01` and `anon:warning` is the text below | MUST |
-| `start_datetime` and `end_datetime` are the first and last row times, `datetime` is `null` | MUST |
+| `start_datetime` and `end_datetime` are the smallest and largest `event_time_utc_us`, `datetime` is `null` | MUST |
 | `assets.data` is the Parquet file with role `data` and `table:row_count` | MUST |
 | `assets.data` `href` is relative, `./<file>.parquet` | MUST |
 | `root`, `parent` and `collection` links are relative | MUST |

@@ -30,13 +30,27 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - Board registry `registry/boards.json` with every board slug, its vendor, model, template home and first template.
   `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
-- `npm run validate` checks templates, footers, geo keys, Collections, Items and registries from outside this repository,
-  one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift
+- `npm run validate` checks templates, footers, geo keys, Collections, Items, Catalogs and registries from outside this
+  repository, one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift.
+  Collections and Items meet the extension schema as well as the profile.
+  An Item geometry must be the union of at most 10000 resolution 8 cells with closed rings.
+  The cells are rebuilt from the boundary, so a large or many position geometry fails fast.
+  The cell that holds a pole, and a union round it, pass as well.
+  `--sha256` fails when no file is a template.
+- A Catalog child link href must be exactly `./thing=<uuid>/collection.json`, with the `./` and a lower case UUID.
+  A catalog host that writes `thing=<uuid>/collection.json` without the `./` must change it, though both resolve to the same Collection
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
+- Property registry entries for air pressure (`hPa`) and nitrogen dioxide (`[ppb]`), with English and Arabic labels
+- Arabic for every `short_label` and for the `label` of each measurement a card shows, the particle counts among them.
+  Diagnostic and device labels stay English. The Arabic waits for a native speaker check
+- `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
+  such as `µg/m³` or `hPa ` with a trailing space
 - `opensensor:aggregate` gains `delta` for counters and `circular_mean` for angles, each with its roll-up rule, issue #7
 
 ### Changed
 
+- WHO scale step labels read as the app shows them, such as "Within the WHO guideline", "Within WHO interim target 4"
+  and "Above every WHO target", in English and Arabic
 - Display hints are published. The rule that the app profile never goes into published STAC is gone.
   A user's own overrides still stay in the app
 - A Collection's columns may differ from its template's only in display hints, and its scales are the template's overlaid by the owner's
@@ -54,7 +68,12 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   - Rounding rounds each operation on its own, with no fused multiply add
   - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
   - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
-  - The Collection takes its footer from the file with the latest window start
+  - The Collection takes its footer from the file with the latest window start. Two files in one window are ordered
+    by the latest `end_datetime`, then by the greater file name in byte order
+  - `check-profile` compares only that footer with the Collection template link, so an older footer may name an older template
+  - The Item `start_datetime` and `end_datetime` rule names the smallest and largest `event_time_utc_us`, as the Canonical form does
+  - `buildItem` returns no Item when the file name HHMM is not the window of the earliest row,
+    or the footer rotation is not 600, 900, 1800 or 3600
   - The `geo` bbox check skips zero cells too, as the Item rules already did
   - An indexer takes the owner fields from the published Collection, since the owner config is not published
   - The no-Item list names a file outside its rotation window and a footer with no allowed window
