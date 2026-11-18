@@ -205,7 +205,7 @@
       "$comment": "A board key, two or more dot separated parts. The app owns every key under the reserved prefixes.",
       "type": "string",
       "maxLength": 48,
-      "pattern": "^(?!(ble|wifi|lan|location|thing|owner|sensor)\\.)[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      "pattern": "^(?!(ble|wifi|lan|ntp|location|thing|owner|sensor)\\.)[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
     },
     "range": {
       "type": "object",

@@ -882,6 +882,9 @@ const brokenTemplates = {
   'a config key under a reserved prefix': (doc) => {
     doc.firmware.config_keys['sensor.model'] = { type: 'text', applies: 'immediately', page: 7, label: 'Model' };
   },
+  'a config key under ntp.': (doc) => {
+    doc.firmware.config_keys['ntp.server1'] = { type: 'text', applies: 'immediately', page: 3, label: 'NTP server' };
+  },
   'a config key with one part': (doc) => {
     doc.firmware.config_keys.theme = doc.firmware.config_keys['panel.theme'];
   },

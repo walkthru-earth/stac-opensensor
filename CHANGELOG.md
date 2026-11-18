@@ -31,6 +31,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   `check-profile` fails on a slug in `templates/`, `footers/` or `examples/` that the registry does not list.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
+- `ntp.` is a reserved config key prefix, beside `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.`
+- The exact `thing.setup_v` rule, SHA-256 over the ordered setup ids with the top bit cleared, with two worked values
 
 ### Changed
 

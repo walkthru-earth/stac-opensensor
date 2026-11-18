@@ -549,6 +549,11 @@ A board's own step or section SHOULD carry `label`, and `label_i18n` for each la
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
 An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
+Beside it `thing.setup_v` names the step list those bits refer to, and a `setup_v` the app does not expect reads as no step done.
+`setup_v` is the first four bytes of SHA-256 over the ordered `setup` ids joined by `\n` in UTF-8, read big-endian,
+with the top bit cleared. A result of 0 becomes 1, so 0 and an absent value both name no list.
+Only the ids count, so a step that changes only `req` or `keys` keeps its bit.
+The empty list gives `0x63b0c442`, and the example below, `location`, `wifi` and `panel`, gives `0x36eb6253`.
 
 | Key field | Type | Description |
 | --- | --- | --- |
@@ -561,7 +566,7 @@ The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`,
 
 A Range is `{"min", "max"}`, two integers with `min` at most `max`.
 A key name has two or more dot separated parts of lower case letters, digits and `_`, at most 48 characters, such as `panel.theme`.
-Keys under `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
+Keys under `ble.`, `wifi.`, `lan.`, `ntp.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
 So a template can never declare the PIN, the Wi-Fi password or the LAN token.
 A key holds a name and a type, never a current or default value.
 The app keeps its own safety floors, such as confirming every `action` and requiring a location for a fixed Thing, whatever the manifest says.
