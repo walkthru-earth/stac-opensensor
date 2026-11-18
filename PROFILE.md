@@ -70,6 +70,9 @@ thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.json    its Item, same name
 templates/<board>/<template sha256>.json              optional template mirror
 ```
 
+Each child link href is `./thing=<uuid>/collection.json`, with the `./` and the UUID in lower case, so every
+catalog host writes the same link.
+
 `<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
 `HHMM` is the UTC start of the rotation window that holds the first row, and `<boot>` is the 32 hex boot id from the footer.
 The window start is floor(first row seconds ÷ `rotation_interval_s`) × `rotation_interval_s`, as the firmware logger computes it.
