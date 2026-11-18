@@ -32,6 +32,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   `npm run check-remote` fetches each first template href and fails unless its bytes hash to the registered SHA-256
 - `npm run validate` checks templates, footers, geo keys, Collections, Items and registries from outside this repository,
   one file at a time. It shares `scripts/checks.mjs` with `check-profile`, so the two cannot drift
+  An Item geometry must be the union of at most 10000 resolution 8 cells with closed rings.
+  The cells are rebuilt from the boundary, so a large or many position geometry fails fast
 - `CONTRIBUTING.md`, a step by step guide to adding a board or a sensor, from the slug to `npm test`
 
 ### Changed

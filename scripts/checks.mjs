@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { polygonToCells, cellsToMultiPolygon, getResolution, isValidCell } from 'h3-js';
-import { RESOLUTION, bboxOf, differences } from './canonical.mjs';
+import { cellsToMultiPolygon, cellToBoundary, getResolution, gridDisk, isValidCell, latLngToCell } from 'h3-js';
+import { RESOLUTION, TOLERANCE, bboxOf, differences } from './canonical.mjs';
 
 const repo = new URL('../', import.meta.url);
 export const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
@@ -162,11 +162,12 @@ export const columnErrors = (doc) => {
   return errors;
 };
 
-// A GeoJSON Polygon or MultiPolygon whose rings are closed-length arrays of numeric positions. The schema checks
-// the type but not the nesting, and the cell checks below read every position.
+// A GeoJSON Polygon or MultiPolygon whose rings are closed arrays of numeric positions, the last the same as the
+// first. The schema checks the type but not the nesting, and the cell checks below read every position.
 const isPosition = (p) => Array.isArray(p) && p.length >= 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n));
+const isClosed = (ring) => ring[0].every((n, i) => n === ring[ring.length - 1][i]) && ring[0].length === ring[ring.length - 1].length;
 const isPolygon = (rings) => Array.isArray(rings) && rings.length > 0
-  && rings.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(isPosition));
+  && rings.every((ring) => Array.isArray(ring) && ring.length >= 4 && ring.every(isPosition) && isClosed(ring));
 const wellFormed = (geometry) => (geometry?.type === 'Polygon' && isPolygon(geometry.coordinates))
   || (geometry?.type === 'MultiPolygon' && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0
     && geometry.coordinates.every(isPolygon));
@@ -177,21 +178,81 @@ const ringsOf = (geometry) => {
   return [];
 };
 
-// A union of n resolution 8 cells has a boundary of at least about the square root of 48n vertices, so a polygon
-// whose bounds hold far more cells than its vertex count allows is not one. This rejects it before polygonToCells
-// fills its bounds. Polygons that pass still face the exact comparison.
-const CELL_KM2 = 0.737;
-const KM_PER_DEGREE = 111.32;
-const tooLargeForItsBoundary = (polygons) => polygons.some((rings) => {
-  const ring = rings[0] ?? [];
-  const lngs = ring.map((p) => p[0]);
-  const lats = ring.map((p) => p[1]);
-  const midLat = ((Math.max(...lats) + Math.min(...lats)) / 2) * (Math.PI / 180);
-  const km2 = (Math.max(...lats) - Math.min(...lats)) * KM_PER_DEGREE
-    * (Math.max(...lngs) - Math.min(...lngs)) * KM_PER_DEGREE * Math.max(Math.cos(midLat), 0.01);
-  const vertices = rings.reduce((sum, r) => sum + r.length, 0);
-  return km2 / CELL_KM2 > 16 * vertices * vertices + 10000;
-});
+// The cells of a File Item geometry are rebuilt from its boundary, in time linear in its positions and its cells.
+// polygonToCells is not used, as its time grows with the bounds of a polygon times its positions. A long thin
+// polygon or a ring with many positions could hold it for minutes.
+//
+// MAX_CELLS is a hard cap that does not grow with the number of positions. One file covers at most one hour, as
+// rotation_interval_s is at most 3600. A moving Thing writes the cell of each fix, so a file has at most one cell
+// per fix, and a path crosses about one resolution 8 cell per 0.8 km. 10000 cells is more than 3600 fixes at one
+// per second, or 8000 km of path. A fixed Thing has one cell. A cell has 6 corners and up to 4 more where it
+// crosses an icosahedron edge, which bounds the positions.
+export const MAX_CELLS = 10000;
+const MAX_POSITIONS = 10 * MAX_CELLS;
+const RAD = Math.PI / 180;
+
+// A position is a corner of a resolution 8 cell. The cell that holds it, or one of its neighbours, has it as a
+// boundary vertex.
+const isCellCorner = ([lng, lat]) => {
+  const holder = latLngToCell(lat, lng, RESOLUTION);
+  const corner = (cell) => cellToBoundary(cell, true)
+    .some(([x, y]) => Math.abs(x - lng) <= TOLERANCE && Math.abs(y - lat) <= TOLERANCE);
+  return corner(holder) || gridDisk(holder, 1).some(corner);
+};
+
+const wrap = (dLng) => (dLng > 180 ? dLng - 360 : dLng < -180 ? dLng + 360 : dLng);
+
+// Twice the signed area of a ring on the sphere, by the trapezoid rule on longitude and sine of latitude.
+// It is negative when the ring runs counterclockwise.
+const signedArea = (ring) => ring.slice(1).reduce((sum, b, i) => sum
+  + wrap(b[0] - ring[i][0]) * RAD * (Math.sin(ring[i][1] * RAD) + Math.sin(b[1] * RAD)), 0);
+
+// The cells on each side of every boundary edge, found a few metres off the middle of the edge. Inside is on the
+// left of a counterclockwise outer ring and on the right of a counterclockwise hole.
+const sideCells = (polygons) => {
+  const inside = new Set();
+  const outside = new Set();
+  for (const rings of polygons) {
+    rings.forEach((ring, index) => {
+      const leftIsInside = (signedArea(ring) < 0) === (index === 0);
+      for (let i = 0; i < ring.length - 1; i += 1) {
+        const [lng, lat] = ring[i];
+        const cos = Math.max(Math.cos(lat * RAD), 1e-6);
+        const dx = wrap(ring[i + 1][0] - lng) * cos;
+        const dy = ring[i + 1][1] - lat;
+        if (dx === 0 && dy === 0) continue;
+        const midLng = lng + (dx / cos) / 2;
+        const midLat = lat + dy / 2;
+        const left = latLngToCell(midLat + dx * 0.02, midLng - (dy * 0.02) / cos, RESOLUTION);
+        const right = latLngToCell(midLat - dx * 0.02, midLng + (dy * 0.02) / cos, RESOLUTION);
+        inside.add(leftIsInside ? left : right);
+        outside.add(leftIsInside ? right : left);
+      }
+    });
+  }
+  return { inside, outside };
+};
+
+// The cells a union of resolution 8 cells holds. The cells just inside its boundary, and every cell reached from
+// them without crossing to a cell just outside. Empty when the positions are not cell corners or there are more
+// than MAX_CELLS cells, and the exact comparison then fails.
+const cellsOf = (polygons) => {
+  const positions = polygons.flat(2);
+  if (positions.length > MAX_POSITIONS || !positions.every(isCellCorner)) return [];
+  const { inside, outside } = sideCells(polygons);
+  const found = new Set(inside);
+  const queue = [...inside];
+  while (queue.length > 0) {
+    if (found.size > MAX_CELLS) return [];
+    for (const next of gridDisk(queue.pop(), 1)) {
+      if (!found.has(next) && !outside.has(next)) {
+        found.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return found.size > MAX_CELLS ? [] : [...found].sort();
+};
 
 // The geometry of a File Item is cellsToMultiPolygon of its distinct resolution 8 cells in ascending order,
 // so every writer gets the same JSON. A fixed Item is the one polygon of its grid:code.
@@ -199,9 +260,7 @@ export const geometryErrors = (doc) => {
   if (!wellFormed(doc.geometry)) return ['geometry is not a Polygon or MultiPolygon of closed rings of positions'];
   const errors = [];
   const polygons = ringsOf(doc.geometry);
-  const cells = tooLargeForItsBoundary(polygons)
-    ? []
-    : [...new Set(polygons.flatMap((polygon) => polygonToCells(polygon, RESOLUTION, true)))].sort();
+  const cells = cellsOf(polygons);
   if (cells.length === 0 || !close(cellsToMultiPolygon(cells, true), polygons)) {
     errors.push(`geometry is not a union of resolution ${RESOLUTION} H3 cells`);
   }

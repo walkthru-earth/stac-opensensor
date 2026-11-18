@@ -257,6 +257,8 @@ checks of `npm test`. It does not run `stac-node-validator`, the Markdown checks
 such as an Item against its Collection. Run `stac-node-validator` too for STAC core.
 It knows templates, footers, GeoParquet `geo` keys, Collections, Items, Catalogs and the registries by their content.
 For a Catalog it checks its root link and the form of its child links, not that each child exists.
+An Item geometry must be the union of at most 10000 resolution 8 cells, every position a cell corner.
+One file covers at most one hour, so that is more than one fix per second for the whole file.
 
 ```bash
 npm run validate -- --sha256 "$TEMPLATE_SHA256" path/to/template.json

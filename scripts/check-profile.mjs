@@ -16,7 +16,8 @@ import { readdirSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, basename } from 'node:path';
 import {
-  polygonToCells, cellsToMultiPolygon, cellToLatLng, cellToParent, cellToCenterChild, getResolution, isValidCell,
+  polygonToCells, cellsToMultiPolygon, cellToLatLng, cellToParent, cellToCenterChild, getResolution, gridDisk, isValidCell,
+  latLngToCell,
 } from 'h3-js';
 import {
   RESOLUTION, TOLERANCE, EXT, bboxOf, geometryOf, buildItem, buildCollection, differences, windowOf, partitionOf, hhmmOf,
@@ -885,15 +886,43 @@ for (const [what, cells] of Object.entries({
 }
 const unknownKind = shared.validateDocument('x.json', { type: 'Thing' }, regs);
 mustFail('x.json', 'validate.mjs with a document of no known kind', unknownKind.errors);
-{
-  // A region-size rectangle is rejected before polygonToCells fills its bounds.
+// Geometries that once made the cell check slow or ran it out of memory. Each must be rejected within 2 s.
+const subdivided = (n) => {
+  const corners = [[0, 0], [20, 0], [20, 20], [0, 20]];
+  const ring = corners.flatMap(([x, y], k) => {
+    const [x2, y2] = corners[(k + 1) % 4];
+    return Array.from({ length: n }, (_, i) => [x + ((x2 - x) * i) / n, y + ((y2 - y) * i) / n]);
+  });
+  return [...ring, ring[0]];
+};
+const zigzag = (n) => {
+  const up = Array.from({ length: n + 1 }, (_, i) => [(2 * i) / n, (2 * i) / n + (i % 2 ? 0.002 : 0)]);
+  const down = Array.from({ length: n + 1 }, (_, i) => [(2 * (n - i)) / n + 0.004, (2 * (n - i)) / n]);
+  return [...up, ...down, up[0]];
+};
+const disk = (k) => geometryOf(gridDisk(latLngToCell(30, 31, RESOLUTION), k));
+for (const [what, geometry] of [
+  ['a region-size rectangle', { type: 'Polygon', coordinates: [[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]] }],
+  ['a region-size rectangle whose edges are cut into 649 positions', { type: 'Polygon', coordinates: [subdivided(162)] }],
+  ['a thin zigzag of 40003 positions', { type: 'Polygon', coordinates: [zigzag(20000)] }],
+  [`a union of ${gridDisk(latLngToCell(30, 31, RESOLUTION), 60).length} cells, more than MAX_CELLS`, disk(60)],
+]) {
   const doc = structuredClone(movingItem);
-  doc.geometry = { type: 'Polygon', coordinates: [[[0, 0], [20, 0], [20, 20], [0, 20], [0, 0]]] };
-  doc.bbox = [0, 0, 20, 20];
+  doc.geometry = geometry;
+  doc.bbox = bboxOf(geometry);
   const started = Date.now();
   const { errors } = shared.validateDocument(movingFile, doc, regs);
-  mustFail(movingFile, 'validate.mjs with a region-size rectangle', errors, `union of resolution ${RESOLUTION}`);
-  if (Date.now() - started > 2000) report(movingFile, ['a region-size rectangle took more than 2 s to reject']);
+  mustFail(movingFile, `validate.mjs with ${what}`, errors, `union of resolution ${RESOLUTION}`);
+  if (Date.now() - started > 2000) report(movingFile, [`${what} took more than 2 s to reject`]);
+}
+{
+  // A ring whose last position is not its first.
+  const doc = structuredClone(movingItem);
+  const ring = disk(1).coordinates[0];
+  doc.geometry = { type: 'Polygon', coordinates: [[...ring.slice(0, -1), ring[1]]] };
+  doc.bbox = bboxOf(doc.geometry);
+  mustFail(movingFile, 'validate.mjs with a ring that is not closed', shared.validateDocument(movingFile, doc, regs).errors,
+    'closed rings');
 }
 {
   const doc = structuredClone(catalog);
