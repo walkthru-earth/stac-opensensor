@@ -137,12 +137,20 @@ Point the property entry `scale` at the new id. See [Scale Object](README.md#sca
 ## 5. Check it
 
 You need `npm`, which comes with [node.js](https://nodejs.org/en/download/).
+Check your template on its own first.
+`TEMPLATE_SHA256` is the 64 hex digest of the template bytes, the one your build printed and the footer names.
+
+```bash
+npm ci
+npm run validate -- --sha256 "$TEMPLATE_SHA256" path/to/template.json
+```
+
+Then add it here.
 
 1. Copy your template's exact bytes to `templates/<slug>/<firmware.dict>.json`, with no reformatting.
 2. Run the checks from the root of this repository.
 
 ```bash
-npm ci
 npm test
 ```
 

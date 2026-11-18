@@ -22,9 +22,11 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [footers/](footers) | The `opensensor` Parquet footer and the GeoParquet `geo` key of each example file |
 | [fixtures/](fixtures) | Rows of each example file and each Thing's `owner.json`, the input of the rebuild |
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
+| [scripts/checks.mjs](scripts/checks.mjs) | Single document checks, shared by the profile check and the validator |
 | [scripts/check-profile.mjs](scripts/check-profile.mjs) | Cross document checks and the broken cases that must fail |
 | [scripts/check-live-schemas.mjs](scripts/check-live-schemas.mjs) | Checks that each `$id` URL serves the bytes of its repo file |
 | [scripts/check-remote.mjs](scripts/check-remote.mjs) | Networked check that each registered first template href serves its SHA-256 |
+| [scripts/validate.mjs](scripts/validate.mjs) | `npm run validate`, checks outside files one at a time with the shared checks |
 | [docs/](docs) | Decision register and the 2026-10-25 overlap review |
 | [.github/](.github) | `remark.yaml`, the test workflow on push and PR, the publish workflow on release, the daily live check |
 
@@ -39,7 +41,7 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 - The extension, profile, template and footer share one version. While it is 0.x a minor bump is breaking.
 - A version bump moves all of these together.
   - URLs. Every `$id` and `const` in `json-schema/`, the `--schemaMap` URLs in [package.json](package.json),
-    `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/check-profile.mjs](scripts/check-profile.mjs),
+    `BASE` in [scripts/canonical.mjs](scripts/canonical.mjs), `base` in [scripts/checks.mjs](scripts/checks.mjs),
     the examples' `stac_extensions`, the `$schema` of every file in `registry/`,
     the Identifier row of [README.md](README.md) and the schema rows of [PROFILE.md](PROFILE.md).
   - Bare strings. `version` in `package.json`, the PROFILE Version row and "now 0.1.0" under Versioning, the footer
@@ -133,6 +135,10 @@ Other scripts.
   The publish workflow runs it after the deploy, and the `Check Published Schemas` workflow runs it daily for every tag.
 - `npm run check-remote` fetches every `first_template.href` in `registry/boards.json` and compares its SHA-256.
   It fetches from board hosts, so it runs apart from `npm test`. The test workflow runs it as its own step.
+- `npm run validate -- <file>...` checks templates, footers, geo keys, Collections, Items, Catalogs and registries.
+  From outside the checkout run `npm --prefix /path/to/checkout run validate -- ./sample.json`, and relative paths
+  resolve against the directory you ran it from.
+  A new single document rule goes in `scripts/checks.mjs`, so `check-profile` and the validator share it.
 
 ## Before a PR
 
