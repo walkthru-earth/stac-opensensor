@@ -70,6 +70,9 @@ thing=<uuid>/year=YYYY/month=MM/day=DD/<file>.json    its Item, same name
 templates/<board>/<template sha256>.json              optional template mirror
 ```
 
+Each child link href is `./thing=<uuid>/collection.json`, with the `./` and the UUID in lower case, so every
+catalog host writes the same link.
+
 `<file>` is the board's own name, `data_HHMM_<boot>_<first>-<last>-<attempt>`.
 `HHMM` is the UTC start of the rotation window that holds the earliest row, and `<boot>` is the 32 hex boot id from the footer.
 The earliest row is the one with the smallest `event_time_utc_us`, so rows need not be stored in time order.
