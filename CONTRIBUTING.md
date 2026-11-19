@@ -92,10 +92,11 @@ The rules and an example are in [Setup manifest](PROFILE.md#setup-manifest).
 
 - `setup` lists wizard steps in order, 31 at most. `settings` lists Device settings sections.
 - A step id from the app catalog, such as `location` or `wifi`, reuses the app's own screen.
+  `name` and `mobility` are setup steps only, and `bonds` and `sensor` are Device settings sections only.
   Any other id is a generic form built from its `keys`.
 - Each key in `config_keys` has a `type`, `applies`, the `GET_CONFIG` `page` that reads it back and a `label`.
 - Key names have two or more dot separated parts, such as `panel.theme`.
-  The prefixes `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
+  The prefixes `ble.`, `wifi.`, `lan.`, `ntp.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
 - A key holds a name and a type, never a value. Never put a PIN, a Wi-Fi password or a LAN token in a template or an example.
 
 ## 3. Add property entries
