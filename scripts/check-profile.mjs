@@ -800,6 +800,12 @@ const brokenTemplates = {
   'a setup step the app owns': (doc) => {
     doc.firmware.setup.unshift({ id: 'pair', req: true });
   },
+  'a settings section only setup may use': (doc) => {
+    doc.firmware.settings.push({ id: 'mobility' });
+  },
+  'a setup step only settings may use': (doc) => {
+    doc.firmware.setup.push({ id: 'bonds', label: 'Bonds' });
+  },
   'a setup step listed twice': (doc) => {
     doc.firmware.setup.push({ id: 'wifi' });
   },
