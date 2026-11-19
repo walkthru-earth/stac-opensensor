@@ -573,8 +573,10 @@ Firmware and app docs cite this profile by its full 40 character commit.
 
 The board declares its own setup wizard and Device settings, as in firmware
 [decision 0003](https://github.com/walkthru-earth/opensensor-space-firmware/blob/85a0e77c9b3a70ec407e872346af867cd7d66f2e/docs/shared/decisions/0003-metadata-driven-apps.md).
-The generator will copy `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
-It does not do so yet. That copy is the firmware follow-up in [opensensor-space-firmware#184](https://github.com/walkthru-earth/opensensor-space-firmware/issues/184).
+The firmware generator, `tools/plugin_contract.py`, copies `setup`, `settings` and `config_keys` from the board `board.json`
+into the `firmware` block, each one the board declares, as added in
+[opensensor-space-firmware#187](https://github.com/walkthru-earth/opensensor-space-firmware/pull/187).
+The templates in this repository predate it and carry none of the three.
 They are hashed with the template, so a change moves `desc` and never moves `dict`.
 Setup is local. It lives in the template and on the device, never in a Collection or an Item.
 
@@ -587,12 +589,21 @@ Setup is local. It lives in the template and on the device, never in a Collectio
 | keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
 
 A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
-The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`.
+The app catalog differs by place.
+Setup step ids are `name`, `location`, `mobility`, `site`, `wifi`, `pairing` and `lan`.
+Settings section ids are `location`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`, the sensor identity card in Device settings.
+`name` and `mobility` are setup only, and a settings section MUST NOT use them.
+`bonds` and `sensor` are settings only, and a setup step MUST NOT use them.
 A catalog step or section MAY omit `label`, since the app has its own title for it.
 A board's own step or section SHOULD carry `label`, and `label_i18n` for each language it supports.
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
-An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
+An id outside its catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
+Beside it `thing.setup_v` names the step list those bits refer to, and a `setup_v` the app does not expect reads as no step done.
+`setup_v` is the first four bytes of SHA-256 over the ordered `setup` ids joined by `\n` in UTF-8, read big-endian,
+with the top bit cleared. A result of 0 becomes 1, so 0 and an absent value both name no list.
+Only the ids count, so a step that changes only `req` or `keys` keeps its bit.
+The empty list gives `0x63b0c442`, and the example below, `location`, `wifi` and `panel`, gives `0x36eb6253`.
 
 | Key field | Type | Description |
 | --- | --- | --- |
@@ -605,7 +616,7 @@ The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`,
 
 A Range is `{"min", "max"}`, two integers with `min` at most `max`.
 A key name has two or more dot separated parts of lower case letters, digits and `_`, at most 48 characters, such as `panel.theme`.
-Keys under `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
+Keys under `ble.`, `wifi.`, `lan.`, `ntp.`, `location.`, `thing.`, `owner.` and `sensor.` belong to the app and are refused.
 So a template can never declare the PIN, the Wi-Fi password or the LAN token.
 A key holds a name and a type, never a current or default value.
 The app keeps its own safety floors, such as confirming every `action` and requiring a location for a fixed Thing, whatever the manifest says.
