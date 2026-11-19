@@ -894,7 +894,7 @@ for (const [what, mutate] of Object.entries(brokenTemplates)) {
   mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
 }
 // The setup step rules of issue #29. The template schema refuses each one, and so does manifestErrors on its own,
-// with the message that names the rule.
+// with the message that names the rule. Each layer is asserted alone, so neither can hide a gap in the other.
 const brokenSteps = {
   'a required board step with no keys': ['is required and the board\'s own, and lists no keys', (doc) => {
     doc.firmware.setup.push({ id: 'calibrate', req: true, label: 'Calibrate' });
@@ -918,7 +918,7 @@ const brokenSteps = {
 for (const [what, [expect, mutate]] of Object.entries(brokenSteps)) {
   const doc = structuredClone(hinted.doc);
   mutate(doc);
-  mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
+  mustFail(hinted.file, `the template schema with ${what}`, schemaErrors(shared.schemas.template, doc));
   mustFail(hinted.file, `a manifest with ${what}`, shared.manifestErrors(doc.firmware), expect);
 }
 {
