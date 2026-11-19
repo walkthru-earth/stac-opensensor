@@ -813,7 +813,7 @@ const brokenTemplates = {
     doc.firmware.settings[2].keys.push('panel.sleep_s');
   },
   'more than 31 setup steps': (doc) => {
-    doc.firmware.setup = Array.from({ length: 32 }, (_, i) => ({ id: `step_${i}` }));
+    doc.firmware.setup = Array.from({ length: 32 }, (_, i) => ({ id: `step_${i}`, label: `Step ${i}` }));
   },
   'a secret config key': (doc) => {
     doc.firmware.config_keys['wifi.psk'] = { type: 'text', applies: 'immediately', page: 7, label: 'Password' };
@@ -892,6 +892,34 @@ for (const [what, mutate] of Object.entries(brokenTemplates)) {
   const doc = structuredClone(hinted.doc);
   mutate(doc);
   mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
+}
+// The setup step rules of issue #29. The template schema refuses each one, and so does manifestErrors on its own,
+// with the message that names the rule.
+const brokenSteps = {
+  'a required board step with no keys': ['is required and the board\'s own, and lists no keys', (doc) => {
+    doc.firmware.setup.push({ id: 'calibrate', req: true, label: 'Calibrate' });
+  }],
+  'a required board step with empty keys': ['is required and the board\'s own, and lists no keys', (doc) => {
+    doc.firmware.setup.push({ id: 'calibrate', req: true, label: 'Calibrate', keys: [] });
+  }],
+  'a catalog setup step that lists keys': ['wifi is an app catalog id and lists keys', (doc) => {
+    doc.firmware.setup.find((s) => s.id === 'wifi').keys = ['panel.theme'];
+  }],
+  'a catalog settings section that lists keys': ['location is an app catalog id and lists keys', (doc) => {
+    doc.firmware.settings.find((s) => s.id === 'location').keys = ['panel.theme'];
+  }],
+  'a board setup step with no label': ['panel is the board\'s own and has no label', (doc) => {
+    delete doc.firmware.setup.find((s) => s.id === 'panel').label;
+  }],
+  'a board settings section with no label': ['air is the board\'s own and has no label', (doc) => {
+    delete doc.firmware.settings.find((s) => s.id === 'air').label;
+  }],
+};
+for (const [what, [expect, mutate]] of Object.entries(brokenSteps)) {
+  const doc = structuredClone(hinted.doc);
+  mutate(doc);
+  mustFail(hinted.file, `a template with ${what}`, checkTemplate(doc));
+  mustFail(hinted.file, `a manifest with ${what}`, shared.manifestErrors(doc.firmware), expect);
 }
 {
   // An inherited member of the scales map is not a scale the template holds.
