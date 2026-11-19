@@ -78,9 +78,6 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   - Rounding rounds each operation on its own, with no fused multiply add
   - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
   - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
-- A board registry `first_template.href` with a port, an upper case host or a trailing dot skipped the 40 hex commit check,
-  issue #12. The host must now be lower case with no port, and a `raw.githubusercontent.com` href needs `<owner>/<repo>/<commit>/`.
-  Its path may not hold a `.` or `..` segment, a `%` or a backslash, so it cannot climb from the commit back to a branch
   - The Collection takes its footer from the file with the latest window start. Two files in one window are ordered
     by the latest `end_datetime`, then by the greater file name in byte order
   - `check-profile` compares only that footer with the Collection template link, so an older footer may name an older template
@@ -90,6 +87,9 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   - The `geo` bbox check skips zero cells too, as the Item rules already did
   - An indexer takes the owner fields from the published Collection, since the owner config is not published
   - The no-Item list names a file outside its rotation window and a footer with no allowed window
+- A board registry `first_template.href` with a port, an upper case host or a trailing dot skipped the 40 hex commit check,
+  issue #12. The host must now be lower case with no port, and a `raw.githubusercontent.com` href needs `<owner>/<repo>/<commit>/`.
+  Its path may not hold a `.` or `..` segment, a `%` or a backslash, so it cannot climb from the commit back to a branch
 
 ## [v0.1.0] - 2026-11-04
 
