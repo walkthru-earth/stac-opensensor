@@ -48,12 +48,14 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
   such as `µg/m³` or `hPa ` with a trailing space
 - `npm run --silent canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
-  and `npm run canonical -- compare` lists where two documents differ
+  and `npm run --silent canonical -- compare` lists where two documents differ
 - `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.
   `npm test` builds the Item of each committed file and compares it with the expected one.
   It does not rerun `scripts/make-golden.mjs`, so a change to `fixtures/` needs that script run and its diff committed
 - `ntp.` is a reserved config key prefix, beside `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.`
 - The exact `thing.setup_v` rule, SHA-256 over the ordered setup ids with the top bit cleared, with two worked values
+- `opensensor:aggregate` gains `delta` for counters and `circular_mean` for angles, each with its roll-up rule, issue #7.
+  A `circular_mean` with no counted rows or no direction is null, and an exact roll-up keeps Σ sin, Σ cos and the counted rows
 
 ### Changed
 

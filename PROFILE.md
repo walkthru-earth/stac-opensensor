@@ -274,6 +274,26 @@ Every column has `name`, `type` and exactly one value in `roles`. The role decid
 | `referenceInformation` | Identity or bookkeeping | Nothing more |
 | `coordinate` | Time or position | Nothing more |
 
+`opensensor:aggregate` says how a derived product rolls a column up over a longer period.
+Two values are not CF `cell_methods` words and need their own rule.
+
+| Value | Meaning | Roll-up |
+| --- | --- | --- |
+| `delta` | A counter stored as its change since the previous row, never negative | Sum of the deltas. A reader never differences them again |
+| `circular_mean` | An angle in degrees, such as a wind direction | atan2(Σ sin, Σ cos) of the counted values, in [0, 360). See below for null |
+
+A `circular_mean` is null in two cases, which a reader tells apart by the counted rows.
+With no counted rows there is no value, and a reader shows no data, as for any missing measurement.
+With counted rows whose resultant length √((Σ sin)² + (Σ cos)²) is at most 1e-9 times the counted rows,
+such as 0 and 180, there is no direction, and a reader shows no prevailing direction instead of an angle.
+
+A product that rolls a `circular_mean` up over longer periods keeps Σ sin, Σ cos and the counted rows of each window and adds them.
+That gives the row-level result exactly, and its null cases follow from the totals.
+Weighting each window's mean direction by its counted rows drops the resultant length, so it is not the same.
+Windows of 0 and 120 and of 90 and 90 give 75 that way, and about 80.1 from the rows.
+The Item core `statistics` `mean` stays the arithmetic mean of [Canonical form](#canonical-form),
+so a reader never rolls a `circular_mean` column up from it.
+
 ## Display hints
 
 Display hints tell a client how to show a column. They never change what a value means, so a reader that ignores them loses nothing.
