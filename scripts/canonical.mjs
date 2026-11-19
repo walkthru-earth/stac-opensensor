@@ -39,6 +39,19 @@ export const rfc3339 = (us) => {
   return micros === 0 ? `${text}Z` : `${text}.${pad(micros, 6).replace(/0+$/, '')}Z`;
 };
 
+// Reads an RFC 3339 UTC datetime back to int64 microseconds, so times compare as instants, never as text.
+export const microsOf = (text) => {
+  const match = /^(.{19})(?:\.([0-9]{1,6}))?Z$/.exec(text);
+  if (!match) return NaN;
+  return Date.parse(`${match[1]}Z`) * 1000 + Number((match[2] ?? '').padEnd(6, '0'));
+};
+
+// The earliest of RFC 3339 datetimes, compared as instants. 13:00:00Z comes before 13:00:00.5Z.
+export const earliest = (texts) => texts.reduce((a, b) => (microsOf(b) < microsOf(a) ? b : a));
+
+// A null or zero h3_cell_id is not located.
+export const isLocated = (cell) => cell !== null && cell !== undefined && !/^0+$/.test(cell);
+
 // The rotation window that holds a time, as the board names the file and its partition.
 export const windowOf = (us, rotationSeconds) => {
   const seconds = Math.floor(us / 1e6);
@@ -47,6 +60,16 @@ export const windowOf = (us, rotationSeconds) => {
 export const partitionOf = (thing, window) => `thing=${thing}/year=${window.getUTCFullYear()}`
   + `/month=${pad(window.getUTCMonth() + 1)}/day=${pad(window.getUTCDate())}`;
 export const hhmmOf = (window) => `${pad(window.getUTCHours())}${pad(window.getUTCMinutes())}`;
+
+// The rotation windows the profile allows. Each divides 3600, so a window never crosses an hour or a day.
+export const ROTATIONS = [600, 900, 1800, 3600];
+
+// Orders two uploaded files for the Collection. Each is { name, window, end }, the file name without .parquet,
+// the window start in ms and end_datetime in int64 microseconds. The later window start is newer,
+// then the later end_datetime, then the greater name in byte order, so the board and an indexer pick the same file.
+export const compareFiles = (a, b) => (a.window - b.window) || (a.end - b.end)
+  || (a.name < b.name ? -1 : Number(a.name > b.name));
+export const latestFile = (files) => files.reduce((a, b) => (compareFiles(b, a) > 0 ? b : a));
 
 const gatePasses = (gate, rows, i) => {
   const values = rows[gate.column];
@@ -119,10 +142,12 @@ export const buildItem = ({ file, rows, footer, template }) => {
   const thing = footer?.thing?.id;
   const mobility = footer?.thing?.mobility;
   if (!thing || !mobility) return { none: 'no Thing id or mobility in the footer' };
+  const rotation = footer?.file?.rotation_interval_s;
+  if (!ROTATIONS.includes(rotation)) return { none: 'the rotation interval is not 600, 900, 1800 or 3600' };
   const times = rows.event_time_utc_us ?? [];
   if (times.length === 0) return { none: 'no rows' };
   if (times.some((t) => t === null || t === undefined)) return { none: 'a row has no UTC time' };
-  const located = (rows.h3_cell_id ?? []).filter((c) => c !== null && c !== undefined && !/^0+$/.test(c));
+  const located = (rows.h3_cell_id ?? []).filter(isLocated);
   if (located.length === 0) return { none: 'no located row' };
   const cells = [...new Set(located)].sort();
   if (cells.some((c) => !isValidCell(c) || getResolution(c) !== RESOLUTION)) {
@@ -132,6 +157,11 @@ export const buildItem = ({ file, rows, footer, template }) => {
 
   const start = Math.min(...times);
   const end = Math.max(...times);
+  // HHMM names the window that holds the earliest row, so data_1300_ may start at 13:07 but data_1315_ may not.
+  const window = windowOf(start, rotation);
+  if (id.slice(5, 9) !== hhmmOf(window)) {
+    return { none: `HHMM in the file name is not ${hhmmOf(window)}, the start of the window of its earliest row` };
+  }
   const geometry = geometryOf(cells);
   const properties = {
     datetime: null,
@@ -173,11 +203,11 @@ export const buildItem = ({ file, rows, footer, template }) => {
       ],
       assets: { data },
     },
-    path: `${partitionOf(thing, windowOf(start, footer.file.rotation_interval_s))}/${id}.json`,
+    path: `${partitionOf(thing, window)}/${id}.json`,
   };
 };
 
-// Builds the Thing Collection from the template, the newest footer, the owner config and the ledger summary.
+// Builds the Thing Collection from the template, the footer of latestFile, the owner config and the ledger summary.
 // ledger is { start, bbox }, the earliest uploaded start_datetime and the union of uploaded Item boxes.
 export const buildCollection = ({ template, footer, owner, ledger }) => {
   const columns = template.item_assets.data['table:columns'].map((column) => {

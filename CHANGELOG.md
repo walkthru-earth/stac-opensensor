@@ -45,6 +45,11 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   Diagnostic and device labels stay English. The Arabic waits for a native speaker check
 - `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
   such as `µg/m³` or `hPa ` with a trailing space
+- `npm run --silent canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
+  and `npm run canonical -- compare` lists where two documents differ
+- `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.
+  `npm test` builds the Item of each committed file and compares it with the expected one.
+  It does not rerun `scripts/make-golden.mjs`, so a change to `fixtures/` needs that script run and its diff committed
 - `ntp.` is a reserved config key prefix, beside `ble.`, `wifi.`, `lan.`, `location.`, `thing.`, `owner.` and `sensor.`
 - The exact `thing.setup_v` rule, SHA-256 over the ordered setup ids with the top bit cleared, with two worked values
 
@@ -64,6 +69,20 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 
 - The WHO scales mixed averaging periods. Both are now the WHO 2021 24-hour guideline and interim targets the app uses,
   PM2.5 15, 25, 37.5, 50 and 75 ug/m3 and PM10 45, 50, 75, 100 and 150 ug/m3, with the app's step colours
+- Canonical form gaps from the v0.1.0 re-review, issue #12
+  - The rotation window comes from the earliest row, the smallest `event_time_utc_us`, not the first stored row
+  - Rounding rounds each operation on its own, with no fused multiply add
+  - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
+  - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
+  - The Collection takes its footer from the file with the latest window start. Two files in one window are ordered
+    by the latest `end_datetime`, then by the greater file name in byte order
+  - `check-profile` compares only that footer with the Collection template link, so an older footer may name an older template
+  - The Item `start_datetime` and `end_datetime` rule names the smallest and largest `event_time_utc_us`, as the Canonical form does
+  - `buildItem` returns no Item when the file name HHMM is not the window of the earliest row,
+    or the footer rotation is not 600, 900, 1800 or 3600
+  - The `geo` bbox check skips zero cells too, as the Item rules already did
+  - An indexer takes the owner fields from the published Collection, since the owner config is not published
+  - The no-Item list names a file outside its rotation window and a footer with no allowed window
 
 ## [v0.1.0] - 2026-11-04
 

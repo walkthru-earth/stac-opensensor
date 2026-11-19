@@ -22,6 +22,10 @@ Read [PROFILE.md](PROFILE.md) for the rules and [docs/decisions.md](docs/decisio
 | [footers/](footers) | The `opensensor` Parquet footer and the GeoParquet `geo` key of each example file |
 | [fixtures/](fixtures) | Rows of each example file and each Thing's `owner.json`, the input of the rebuild |
 | [scripts/canonical.mjs](scripts/canonical.mjs) | Reference builder for the canonical File Item and Thing Collection |
+| [fixtures/golden/](fixtures/golden) | One Parquet data file per board and its expected Item, loaded by firmware and mobile tests |
+| [scripts/parquet.mjs](scripts/parquet.mjs) | Reads a data file into the rows, footer and file facts the builder takes |
+| [scripts/canonical-cli.mjs](scripts/canonical-cli.mjs) | `npm run canonical`, the builder as a command for other repos' CI |
+| [scripts/make-golden.mjs](scripts/make-golden.mjs) | Writes `fixtures/golden/` from `fixtures/`. Run it only to change the set |
 | [scripts/checks.mjs](scripts/checks.mjs) | Single document checks, shared by the profile check and the validator |
 | [scripts/check-profile.mjs](scripts/check-profile.mjs) | Cross document checks and the broken cases that must fail |
 | [scripts/check-live-schemas.mjs](scripts/check-live-schemas.mjs) | Checks that each `$id` URL serves the bytes of its repo file |
@@ -76,8 +80,8 @@ See [PROFILE.md](PROFILE.md#writers).
   The mobile app uses `com.uber:h3` 4.5.1 (h3-java) on the JVM and Android, and a vendored H3 C 4.5.0 on iOS.
 - Canonical geometry, `bbox` and Collection `extent.spatial` compare within 1e-9 degrees (`TOLERANCE` in `canonical.mjs`).
   Change the builder and the PROFILE Canonical form table together.
-- The window start is floor(first row seconds / `rotation_interval_s`) × `rotation_interval_s`.
-  File name `HHMM` is the UTC window start, not the first row time. A board that boots at 13:07 writes `data_1300_`.
+- The window start is floor(earliest row seconds / `rotation_interval_s`) × `rotation_interval_s`, from the smallest `event_time_utc_us`.
+  File name `HHMM` is the UTC window start, not the earliest row time. A board that boots at 13:07 writes `data_1300_`.
   The `year=/month=/day=` partition is the window's UTC date. The window is 600, 900, 1800 or 3600 s.
 - The File Item data `href` is relative, `./<file>.parquet`. Item links are relative too and `datetime` is `null`.
 - A fixed Item lists Grid and sets `grid:code`. A moving Item leaves Grid out and its geometry is the union of its cells.
@@ -115,7 +119,7 @@ npm ci
 npm test
 ```
 
-`npm test` runs these three, each can run alone.
+`npm test` runs these four, each can run alone.
 
 - `npm run check-markdown` lints every Markdown file with [.github/remark.yaml](.github/remark.yaml),
   including links and a 150 character line limit.
@@ -123,9 +127,15 @@ npm test
   It fetches the third party extension schemas, such as Table, CF and Grid, so it needs network.
 - `npm run check-profile` runs fully offline. It rebuilds every Item and Collection from `fixtures/`, checks templates,
   footers, `geo` keys and the Catalog, and must end with `Profile OK` and the count of broken cases rejected.
+- `npm run check-golden` runs offline. It runs `npm run canonical -- item` on every file in `fixtures/golden/`,
+  expects its `<file>.json` with no differences, and checks the exit codes 1 and 2.
 
 Other scripts.
 
+- `npm run --silent canonical -- item <file.parquet>` prints the canonical Item of a data file, `compare <a.json> <b.json>` the differences.
+  `--silent` keeps npm's banner out of the JSON, so `npm run --silent canonical -- item f.parquet > item.json` works.
+  It exits 0 when equal, 1 on a difference, 2 on bad input and 3 when the file gets no Item.
+- `node scripts/make-golden.mjs` rewrites `fixtures/golden/`. Its output is byte for byte stable, so a diff means a real change.
 - `npm run format-examples` rewrites the examples in the validator's format. Run it after editing an example and commit the diff.
 - `npm run check-examples-live` validates against the published schemas and only proves released versions.
 - `npm run check-live-schemas` fetches each schema `$id` and each registry under `<version>/registry/`,
