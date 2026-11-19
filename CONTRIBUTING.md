@@ -41,6 +41,7 @@ A slug names one board model. It is the folder of its templates, the footer `thi
 
 `home` is where your templates are published. `first_template.href` is an immutable link that ends in `/<slug>/<64 hex>.json`,
 and its bytes hash to `first_template.sha256`. A `raw.githubusercontent.com` link names a full 40 hex commit, never a branch.
+The host is lower case with no port.
 A slug is never renamed and never reused, even after a board is retired.
 A new firmware build keeps the slug and ships a new template. A different board gets a new slug.
 
