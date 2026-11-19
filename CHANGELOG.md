@@ -45,6 +45,11 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   Diagnostic and device labels stay English. The Arabic waits for a native speaker check
 - `check-profile` refuses a registry unit that is empty or holds anything but printable ASCII without spaces,
   such as `µg/m³` or `hPa ` with a trailing space
+- `npm run --silent canonical -- item <file.parquet>` reads a board data file with hyparquet and prints its canonical File Item,
+  and `npm run canonical -- compare` lists where two documents differ
+- `fixtures/golden/`, one Parquet data file per board with its expected Item, for firmware and mobile writer tests.
+  `npm test` builds the Item of each committed file and compares it with the expected one.
+  It does not rerun `scripts/make-golden.mjs`, so a change to `fixtures/` needs that script run and its diff committed
 
 ### Changed
 
