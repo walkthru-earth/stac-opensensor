@@ -561,8 +561,10 @@ Firmware and app docs cite this profile by its full 40 character commit.
 
 The board declares its own setup wizard and Device settings, as in firmware
 [decision 0003](https://github.com/walkthru-earth/opensensor-space-firmware/blob/85a0e77c9b3a70ec407e872346af867cd7d66f2e/docs/shared/decisions/0003-metadata-driven-apps.md).
-The generator will copy `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
-It does not do so yet. That copy is the firmware follow-up in [opensensor-space-firmware#184](https://github.com/walkthru-earth/opensensor-space-firmware/issues/184).
+The firmware generator, `tools/plugin_contract.py`, copies `setup`, `settings` and `config_keys` from the board `board.json`
+into the `firmware` block, each one the board declares, as added in
+[opensensor-space-firmware#187](https://github.com/walkthru-earth/opensensor-space-firmware/pull/187).
+The templates in this repository predate it and carry none of the three.
 They are hashed with the template, so a change moves `desc` and never moves `dict`.
 Setup is local. It lives in the template and on the device, never in a Collection or an Item.
 
@@ -575,11 +577,14 @@ Setup is local. It lives in the template and on the device, never in a Collectio
 | keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
 
 A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
-The app catalog holds `name`, `location`, `mobility`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`.
+The app catalog differs by place.
+Setup step ids are `name`, `location`, `mobility`, `site`, `wifi`, `pairing` and `lan`.
+Settings section ids are the same plus `bonds` and `sensor`, the sensor identity card in Device settings.
 A catalog step or section MAY omit `label`, since the app has its own title for it.
+`bonds` or `sensor` used as a setup step id is the board's own step, so it needs a `label`.
 A board's own step or section SHOULD carry `label`, and `label_i18n` for each language it supports.
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
-An id outside the catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
+An id outside its catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
 
 | Key field | Type | Description |
