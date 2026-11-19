@@ -33,6 +33,8 @@ It only defines what STAC core and existing extensions do not already cover, see
   - [Board templates](templates) are what a firmware build knows about its columns, copied byte for byte
   - [Footers](footers) are the `opensensor` Parquet footer and the GeoParquet `geo` key of each example file
   - [Fixtures](fixtures) are the rows of each example file and each Thing's owner config, from which `npm run check-profile` rebuilds the examples
+  - [Golden files](fixtures/golden) are Parquet data files written from the fixtures with their expected Item,
+    for firmware and mobile tests, see [Canonical form](PROFILE.md#canonical-form)
 - [JSON Schema](json-schema/schema.json), plus the [profile](json-schema/profile.json), [template](json-schema/template.json),
   [footer](json-schema/footer.json) and [registry](json-schema/registry.json) schemas
 - [Property registry](registry/properties.json) and [scale registry](registry/scales.json), see [Property registry](#property-registry)
@@ -251,10 +253,14 @@ npm test
 
 `npm test` checks the Markdown, validates the examples against the local schemas and runs `scripts/check-profile.mjs`.
 The profile check also makes sure that broken Items, such as a resolution 7 cell, fail.
+Then `scripts/check-golden.mjs` builds the Item of every golden Parquet file and compares it with the expected one.
 After a release, `npm run check-examples-live` validates the examples against the published schemas.
 `npm run check-live-schemas` checks that each schema `$id` URL serves the bytes of its repo file.
 Both need network, so `npm test` leaves them out.
 To format the examples, run `npm run format-examples`.
+To check a writer, `npm run --silent canonical -- item <file.parquet>` prints the canonical Item of a board data file,
+and `npm run --silent canonical -- compare <a.json> <b.json>` lists where two Items differ.
+`--silent` keeps npm's banner out of the printed JSON.
 
 ### Validating your own files
 
