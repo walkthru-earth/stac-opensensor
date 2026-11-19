@@ -528,8 +528,10 @@ Firmware and app docs cite this profile by its full 40 character commit.
 
 The board declares its own setup wizard and Device settings, as in firmware
 [decision 0003](https://github.com/walkthru-earth/opensensor-space-firmware/blob/85a0e77c9b3a70ec407e872346af867cd7d66f2e/docs/shared/decisions/0003-metadata-driven-apps.md).
-The generator will copy `setup`, `settings` and `config_keys` from the board `board.json` into the `firmware` block.
-It does not do so yet. That copy is the firmware follow-up in [opensensor-space-firmware#184](https://github.com/walkthru-earth/opensensor-space-firmware/issues/184).
+The firmware generator, `tools/plugin_contract.py`, copies `setup`, `settings` and `config_keys` from the board `board.json`
+into the `firmware` block, each one the board declares, as added in
+[opensensor-space-firmware#187](https://github.com/walkthru-earth/opensensor-space-firmware/pull/187).
+The templates in this repository predate it and carry none of the three.
 They are hashed with the template, so a change moves `desc` and never moves `dict`.
 Setup is local. It lives in the template and on the device, never in a Collection or an Item.
 
