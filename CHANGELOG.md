@@ -79,7 +79,8 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
   - The ledger start is the earliest instant, compared as int64 microseconds. `check-profile` no longer sorts it as text
   - The Collection license, `root` and `parent`, dictionary and template links are listed in the Canonical form table
 - A board registry `first_template.href` with a port, an upper case host or a trailing dot skipped the 40 hex commit check,
-  issue #12. The host must now be lower case with no port, and a `raw.githubusercontent.com` href needs `<owner>/<repo>/<commit>/`
+  issue #12. The host must now be lower case with no port, and a `raw.githubusercontent.com` href needs `<owner>/<repo>/<commit>/`.
+  Its path may not hold a `.` or `..` segment, a `%` or a backslash, so it cannot climb from the commit back to a branch
   - The Collection takes its footer from the file with the latest window start. Two files in one window are ordered
     by the latest `end_datetime`, then by the greater file name in byte order
   - `check-profile` compares only that footer with the Collection template link, so an older footer may name an older template

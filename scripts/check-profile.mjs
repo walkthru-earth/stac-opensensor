@@ -980,6 +980,26 @@ const brokenBoards = {
   'a first template on another host with an upper case letter': (doc) => {
     doc.boards['m5stack-cores3'].first_template.href = `https://Templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`;
   },
+  'a first template on another host after user info': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.href = `https://user@templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`;
+  },
+  // A dot segment after the commit resolves back onto a branch, so the GitHub path refuses it in any spelling.
+  'a first template that climbs from the GitHub commit to a branch': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1/../main/');
+  },
+  'a first template that climbs from the GitHub commit with %2e%2e': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1/%2e%2e/main/');
+  },
+  'a first template that climbs from the GitHub commit with backslashes': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1\\..\\main/');
+  },
+  'a first template with a dot segment for the GitHub repo': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace('/opensensor-space-firmware/', '/./');
+  },
   'a slug with no model': (doc) => {
     doc.boards.acme = doc.boards['m5stack-cores3'];
   },
@@ -994,6 +1014,8 @@ for (const [what, mutate] of Object.entries(brokenBoards)) {
 // The forms a first template href may take. A pinned GitHub commit and a lower case host with no port pass the schema.
 for (const [what, href] of Object.entries({
   'a pinned GitHub commit': boards.boards['m5stack-cores3'].first_template.href,
+  'a pinned GitHub commit of a repo with a dot in its name': boards.boards['m5stack-cores3'].first_template.href
+    .replace('/opensensor-space-firmware/', '/firmware.boards/'),
   'another lower case host': `https://templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`,
   'another host with a hyphen and a deep path': `https://data.acme-sensors.example/a/b/m5stack-cores3/${'0'.repeat(64)}.json`,
 })) {
