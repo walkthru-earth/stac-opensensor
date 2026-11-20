@@ -24,8 +24,10 @@ Breaking, ships as v0.2.0 together with regenerated firmware templates.
 - Setup manifest in the template `firmware` block, as in firmware decision 0003. `setup` lists the wizard steps, `settings`
   the Device settings sections and `config_keys` the typed `SET_CONFIG` keys they show. Never a value, never a secret or
   app owned key. `check-profile` checks that every listed key is declared and refuses a broken manifest
-- An optional `label` and `label_i18n` on each setup step and settings section, the page or card title.
-  A board's own step or section should carry one, and an app catalog id may omit it
+- A `label` and an optional `label_i18n` on each setup step and settings section, the page or card title.
+  A board's own step or section must carry `label`, and an app catalog id may omit it
+- Setup step rules, issue #29. The template schema and `check-profile` refuse a catalog step or section that lists `keys`,
+  a board's own step or section with no `label`, and a board's own required step with no keys
 - The app catalog differs by place, as in firmware `tools/plugin_contract.py`. `name` and `mobility` are setup steps only,
   `bonds` and `sensor` are Device settings sections only, and the template schema refuses either in the other list
 - `opensensor:title_i18n` and `opensensor:description_i18n` on `classification:classes` entries and on bit fields and their classes

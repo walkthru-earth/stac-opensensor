@@ -592,9 +592,9 @@ Setup is local. It lives in the template and on the device, never in a Collectio
 | --- | --- | --- |
 | id | string | **REQUIRED**. Lower case letters, digits and `_`. An app catalog step or the board's own id |
 | req | boolean | True when setup cannot finish without the step. Default false |
-| label | string | Plain title in the default language, shown as the wizard page title or the Device settings card title |
+| label | string | **REQUIRED** on a board's own id. Plain title in the default language, the wizard page or Device settings card title |
 | label_i18n | Map\<string, string> | Language code to title, the same shape as `opensensor:title_i18n` |
-| keys | \[string] | The `config_keys` a generic step shows, each declared in `config_keys` |
+| keys | \[string] | The `config_keys` a board's own step shows, each declared in `config_keys`. Never on a catalog id |
 
 A Section is a Step without `req`. Ids are unique within `setup` and within `settings`.
 The app catalog differs by place.
@@ -602,10 +602,11 @@ Setup step ids are `name`, `location`, `mobility`, `site`, `wifi`, `pairing` and
 Settings section ids are `location`, `site`, `wifi`, `pairing`, `lan`, `bonds` and `sensor`, the sensor identity card in Device settings.
 `name` and `mobility` are setup only, and a settings section MUST NOT use them.
 `bonds` and `sensor` are settings only, and a setup step MUST NOT use them.
-A catalog step or section MAY omit `label`, since the app has its own title for it.
-A board's own step or section SHOULD carry `label`, and `label_i18n` for each language it supports.
+A catalog step or section reuses the app's own screen. It MAY omit `label` and MUST NOT list `keys`.
+A board's own step or section MUST carry `label`, and SHOULD carry `label_i18n` for each language it supports.
 `find`, `pair`, `permission` and `done` stay app owned and never appear.
-An id outside its catalog is a generic form drawn from its `keys`. Without keys the app skips it, and a required one leaves setup pending.
+An id outside its catalog is a generic form drawn from its `keys`. Without keys the app skips it,
+so a required one MUST list at least one key, or setup would stay pending.
 The device stores which steps are done in `GET_CONFIG` page 1 `thing.setup_ack`, one bit per `setup` entry in order.
 Beside it `thing.setup_v` names the step list those bits refer to, and a `setup_v` the app does not expect reads as no step done.
 `setup_v` is the first four bytes of SHA-256 over the ordered `setup` ids joined by `\n` in UTF-8, read big-endian,
@@ -646,6 +647,7 @@ The app keeps its own safety floors, such as confirming every `action` and requi
 
 The key names above are a sketch. The firmware fixes the real names and the board settings page.
 `npm run check-profile` checks a template with a full manifest and refuses a secret key, an undeclared step key, a value and a decimal type.
+It also refuses a catalog id that lists keys, a board's own id with no `label` and a required one with no keys.
 
 ## Full example
 
