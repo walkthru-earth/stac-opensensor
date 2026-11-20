@@ -150,7 +150,63 @@
                 "$ref": "#/definitions/stepKeys"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "$comment": "A catalog id reuses the app's own screen, so it lists no keys. A board's own id is a generic form and needs its title.",
+                "if": {
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "$ref": "#/definitions/setupCatalog"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "keys": {
+                      "maxItems": 0
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "label"
+                  ]
+                }
+              },
+              {
+                "$comment": "The app skips a board's own step with no keys, so a required one would leave setup pending for ever.",
+                "if": {
+                  "required": [
+                    "id",
+                    "req"
+                  ],
+                  "properties": {
+                    "id": {
+                      "not": {
+                        "$ref": "#/definitions/setupCatalog"
+                      }
+                    },
+                    "req": {
+                      "const": true
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "keys"
+                  ],
+                  "properties": {
+                    "keys": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "settings": {
@@ -188,7 +244,34 @@
                 "$ref": "#/definitions/stepKeys"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "$comment": "A catalog id reuses the app's own screen, so it lists no keys. A board's own id is a generic form and needs its title.",
+                "if": {
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "$ref": "#/definitions/settingsCatalog"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "keys": {
+                      "maxItems": 0
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "label"
+                  ]
+                }
+              }
+            ]
           }
         },
         "config_keys": {
@@ -225,6 +308,30 @@
         "$ref": "#/definitions/configKey"
       },
       "uniqueItems": true
+    },
+    "setupCatalog": {
+      "$comment": "Setup step ids the app draws with its own screen, as in firmware tools/plugin_contract.py APP_STEPS.",
+      "enum": [
+        "name",
+        "location",
+        "mobility",
+        "site",
+        "wifi",
+        "pairing",
+        "lan"
+      ]
+    },
+    "settingsCatalog": {
+      "$comment": "Device settings section ids the app draws with its own card, as in firmware tools/plugin_contract.py APP_SECTIONS.",
+      "enum": [
+        "location",
+        "site",
+        "wifi",
+        "pairing",
+        "lan",
+        "bonds",
+        "sensor"
+      ]
     },
     "configKey": {
       "$comment": "A board key, two or more dot separated parts. The app owns every key under the reserved prefixes.",

@@ -99,7 +99,15 @@ export const registryErrors = (doc, registry) => {
   return errors;
 };
 
+// The app catalog ids of each place, as in firmware tools/plugin_contract.py APP_STEPS and APP_SECTIONS.
+export const APP_CATALOG = {
+  setup: new Set(['name', 'location', 'mobility', 'site', 'wifi', 'pairing', 'lan']),
+  settings: new Set(['location', 'site', 'wifi', 'pairing', 'lan', 'bonds', 'sensor']),
+};
+
 // The setup manifest. Every key a step or section lists is declared, ids are unique, a range runs upwards.
+// A catalog id reuses the app's own screen, so it lists no keys. A board's own id carries a label, and a required one
+// lists keys, since the app skips an own step with none and setup would stay pending.
 // Shapes the schema rejects are skipped here, so their schema errors still reach the report.
 export const manifestErrors = (firmware) => {
   const errors = [];
@@ -110,8 +118,17 @@ export const manifestErrors = (firmware) => {
       if (!isObject(step)) continue;
       if (ids.has(step.id)) errors.push(`firmware.${list} lists ${step.id} twice`);
       ids.add(step.id);
-      for (const key of Array.isArray(step.keys) ? step.keys : []) {
+      const listed = Array.isArray(step.keys) ? step.keys : [];
+      for (const key of listed) {
         if (!isObject(keys[key])) errors.push(`firmware.${list} ${step.id} shows ${key}, which firmware.config_keys does not declare`);
+      }
+      if (APP_CATALOG[list].has(step.id)) {
+        if (listed.length > 0) errors.push(`firmware.${list} ${step.id} is an app catalog id and lists keys`);
+        continue;
+      }
+      if (!('label' in step)) errors.push(`firmware.${list} ${step.id} is the board's own and has no label`);
+      if (step.req === true && listed.length === 0) {
+        errors.push(`firmware.${list} ${step.id} is required and the board's own, and lists no keys`);
       }
     }
   }
