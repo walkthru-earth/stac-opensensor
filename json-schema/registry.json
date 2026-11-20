@@ -218,8 +218,8 @@
                   "href": {
                     "type": "string",
                     "format": "uri",
-                    "description": "A raw.githubusercontent.com href pins a full 40 hex commit, never a branch.",
-                    "pattern": "^https://(?!raw\\.githubusercontent\\.com/)|^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/"
+                    "description": "A lower case host with no port, then a path. A raw.githubusercontent.com href pins <owner>/<repo>/<full 40 hex commit>/, never a branch, and its path has no dot segment, percent sign or backslash.",
+                    "pattern": "^https://(?=[a-z0-9-]+(?:\\.[a-z0-9-]+)*/)(?!raw\\.githubusercontent\\.com/)|^https://raw\\.githubusercontent\\.com/(?:(?!\\.\\.?(?:/|$))[A-Za-z0-9._~-]+/){2}[0-9a-f]{40}(?:/(?!\\.\\.?(?:/|$))[A-Za-z0-9._~-]+)+$"
                   }
                 },
                 "additionalProperties": false

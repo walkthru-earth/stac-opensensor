@@ -985,6 +985,49 @@ const brokenBoards = {
     const entry = doc.boards['m5stack-cores3'].first_template;
     entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/');
   },
+  // A port, an upper case host or a trailing dot names the same GitHub host, so none may skip the commit check.
+  'a first template on a GitHub branch behind an explicit port': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/').replace('githubusercontent.com/', 'githubusercontent.com:443/');
+  },
+  'a first template on a GitHub branch behind an upper case host': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/').replace('https://raw.', 'https://RAW.');
+  },
+  'a first template on a GitHub branch behind a trailing dot host': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/[0-9a-f]{40}\//, '/main/').replace('githubusercontent.com/', 'githubusercontent.com./');
+  },
+  'a first template on a pinned GitHub commit behind an explicit port': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace('githubusercontent.com/', 'githubusercontent.com:443/');
+  },
+  'a first template on another host with a port': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.href = `https://templates.example.org:8443/m5stack-cores3/${'0'.repeat(64)}.json`;
+  },
+  'a first template on another host with an upper case letter': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.href = `https://Templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`;
+  },
+  'a first template on another host after user info': (doc) => {
+    doc.boards['m5stack-cores3'].first_template.href = `https://user@templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`;
+  },
+  // A dot segment after the commit resolves back onto a branch, so the GitHub path refuses it in any spelling.
+  'a first template that climbs from the GitHub commit to a branch': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1/../main/');
+  },
+  'a first template that climbs from the GitHub commit with %2e%2e': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1/%2e%2e/main/');
+  },
+  'a first template that climbs from the GitHub commit with backslashes': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace(/\/([0-9a-f]{40})\//, '/$1\\..\\main/');
+  },
+  'a first template with a dot segment for the GitHub repo': (doc) => {
+    const entry = doc.boards['m5stack-cores3'].first_template;
+    entry.href = entry.href.replace('/opensensor-space-firmware/', '/./');
+  },
   'a slug with no model': (doc) => {
     doc.boards.acme = doc.boards['m5stack-cores3'];
   },
@@ -995,6 +1038,18 @@ for (const [what, mutate] of Object.entries(brokenBoards)) {
   const uses = [...slugUses];
   mutate(doc, uses);
   mustFail('registry/boards.json', `a board registry with ${what}`, slugErrors(doc, uses));
+}
+// The forms a first template href may take. A pinned GitHub commit and a lower case host with no port pass the schema.
+for (const [what, href] of Object.entries({
+  'a pinned GitHub commit': boards.boards['m5stack-cores3'].first_template.href,
+  'a pinned GitHub commit of a repo with a dot in its name': boards.boards['m5stack-cores3'].first_template.href
+    .replace('/opensensor-space-firmware/', '/firmware.boards/'),
+  'another lower case host': `https://templates.example.org/m5stack-cores3/${'0'.repeat(64)}.json`,
+  'another host with a hyphen and a deep path': `https://data.acme-sensors.example/a/b/m5stack-cores3/${'0'.repeat(64)}.json`,
+})) {
+  const doc = structuredClone(boards);
+  doc.boards['m5stack-cores3'].first_template.href = href;
+  report('registry/boards.json', schemaErrors(boardRegistrySchema, doc).map((e) => `a board registry with ${what} fails, ${e}`));
 }
 // A moving Item has no grid:code, so only its geometry shows the resolution.
 const [movingFile, movingItem] = itemOf('moving');
